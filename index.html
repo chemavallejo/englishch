@@ -1,298 +1,487 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entrenamiento de frases</title>
-
-<style>
-body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:12px;max-width:900px;margin:auto}
-h1{margin-top:0}
-
-.topbar{margin-bottom:10px}
-select{padding:8px;border-radius:6px;border:none}
-
-.es{font-size:18px;font-weight:bold;line-height:1.45;margin-top:10px}
-.answer{margin-top:10px;font-size:18px;color:#cbd5f5}
-
-button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
-.show{background:#e5e7eb;color:black}
-.ok{background:#22c55e}
-.bad{background:#ef4444;color:white}
-.next{background:#38bdf8}
-
-.stats{margin-top:15px;font-size:14px;color:#94a3b8}
-
-.progressContainer{margin-top:12px;background:#0b1220;border-radius:8px;overflow:hidden;height:12px}
-.progressBar{height:12px;width:0%;background:#38bdf8;transition:width .3s}
-
-.message{margin-top:10px;font-size:14px;color:#facc15}
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Entrenamiento de frases</title>
+  <style>
+    :root{
+      --bg:#0f172a;
+      --panel:#1e293b;
+      --panel-2:#0b1220;
+      --text:#ffffff;
+      --muted:#94a3b8;
+      --accent:#38bdf8;
+      --ok:#22c55e;
+      --bad:#ef4444;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      padding:20px;
+      font-family:Arial, Helvetica, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+    }
+    .card{
+      max-width:980px;
+      margin:auto;
+      background:var(--panel);
+      border-radius:14px;
+      padding:20px;
+    }
+    h1{
+      margin:0 0 16px 0;
+      font-size:clamp(2rem, 4vw, 2.4rem);
+    }
+    .topbar{
+      display:flex;
+      flex-wrap:wrap;
+      gap:12px;
+      align-items:end;
+      margin-bottom:10px;
+    }
+    .field label{
+      display:block;
+      margin-bottom:6px;
+      font-size:.95rem;
+      color:var(--text);
+    }
+    select{
+      padding:9px 12px;
+      border-radius:8px;
+      border:none;
+      font-size:1rem;
+    }
+    .progress-wrap{
+      margin:10px 0 12px 0;
+    }
+    .progress-meta{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:.95rem;
+      color:var(--muted);
+      margin-bottom:8px;
+    }
+    .progress{
+      height:12px;
+      background:var(--panel-2);
+      border-radius:999px;
+      overflow:hidden;
+    }
+    .progress-bar{
+      height:100%;
+      width:0%;
+      background:var(--accent);
+      transition:width .25s ease;
+    }
+    .message{
+      min-height:22px;
+      margin:8px 0 10px;
+      color:#facc15;
+      font-weight:700;
+    }
+    .es{
+      font-size:18px;
+      font-weight:700;
+      line-height:1.45;
+      margin-top:10px;
+    }
+    .answer{
+      margin-top:12px;
+      font-size:18px;
+      line-height:1.45;
+      color:#cbd5e1;
+      min-height:28px;
+    }
+    .buttons{
+      margin-top:14px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+    }
+    button{
+      border:none;
+      border-radius:10px;
+      padding:12px 16px;
+      font-weight:700;
+      font-size:1rem;
+      cursor:pointer;
+    }
+    .show{background:#e5e7eb;color:#111827}
+    .ok{background:var(--ok);color:#062b14}
+    .bad{background:var(--bad);color:#fff}
+    .stats{
+      margin-top:16px;
+      font-size:15px;
+      color:var(--muted);
+      line-height:1.5;
+    }
+    .done{
+      color:#86efac;
+      font-weight:700;
+    }
+    @media (max-width:680px){
+      body{padding:12px}
+      .card{padding:14px}
+      .buttons{flex-direction:column}
+      button{width:100%}
+      .es,.answer{font-size:18px}
+    }
+  </style>
 </head>
-
 <body>
-
-<div class="card">
-
-<h1>Entrenamiento de frases</h1>
-
-<div class="topbar">
-<label>Bloque:</label>
-<select id="blockSelect"></select>
-</div>
-
-<div class="progressContainer">
-<div id="progressBar" class="progressBar"></div>
-</div>
-
-<div id="message" class="message"></div>
-
-<div id="es" class="es">Cargando...</div>
-<div id="answer" class="answer"></div>
-
-<div>
-<button class="show" onclick="showAnswer()">Ver respuesta</button>
-<button class="ok" onclick="markCorrect()">Correcto</button>
-<button class="bad" onclick="markWrong()">Incorrecto</button>
-<button class="next" onclick="next()">Siguiente</button>
-</div>
-
-<div class="stats">
-Correctas: <span id="okCount">0</span> |
-Incorrectas: <span id="badCount">0</span> |
-Errores bloque: <span id="errorCount">0</span> |
-Errores acumulados: <span id="globalErrorCount">0</span>
-</div>
-
-</div>
-
-<script>
-
-const SHEET_ID="1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY"
-
-let frases=[]
-let bloqueActual=[]
-let errores=[]
-let erroresGlobal=[]
-let indice=0
-let modoRepaso=false
-let actual=null
-let ok=0
-let bad=0
-let ultima=null
-
-function cargarErroresGlobal(){
-let data=localStorage.getItem("errores_acumulados")
-if(data){
-erroresGlobal=JSON.parse(data)
-}
-}
-
-function guardarErroresGlobal(){
-localStorage.setItem("errores_acumulados",JSON.stringify(erroresGlobal))
-}
-
-async function cargar(){
-
-cargarErroresGlobal()
-
-let url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`
-let r=await fetch(url)
-let t=await r.text()
-
-let rows=t.split("\n").slice(1)
-
-rows.forEach(r=>{
-
-let c=r.split(",")
-
-let bloque=c[1]
-let es=c[2]
-let en=c[3]
-let activa=c[4]
-
-if(activa && activa.toLowerCase().includes("x")){
-
-frases.push({
-bloque:bloque.trim(),
-es:es.trim(),
-en:en.trim()
-})
-
-}
-
-})
-
-initBlocks()
-
-}
-
-function shuffle(array){
-for (let i = array.length - 1; i > 0; i--) {
-const j = Math.floor(Math.random() * (i + 1));
-[array[i], array[j]] = [array[j], array[i]];
-}
-return array;
-}
-
-function initBlocks(){
-
-let blocks=[...new Set(frases.map(f=>f.bloque))]
-
-let select=document.getElementById("blockSelect")
-
-blocks.forEach(b=>{
-let opt=document.createElement("option")
-opt.value=b
-opt.textContent=b
-select.appendChild(opt)
-})
-
-let opt=document.createElement("option")
-opt.value="repaso_global"
-opt.textContent="repaso acumulado"
-select.appendChild(opt)
-
-select.addEventListener("change",startBlock)
-
-startBlock()
-
-}
-
-function startBlock(){
-
-let block=document.getElementById("blockSelect").value
-
-if(block==="repaso_global"){
-bloqueActual=erroresGlobal.slice()
-modoRepaso=true
-indice=0
-}else{
-bloqueActual=frases.filter(f=>f.bloque===block)
-shuffle(bloqueActual)
-indice=0
-modoRepaso=false
-errores=[]
-}
-
-document.getElementById("message").innerText=""
-actualizarBarra()
-next()
-
-}
-
-function actualizarBarra(){
-
-let total=bloqueActual.length
-if(total===0){return}
-
-let hecho=modoRepaso ? total-errores.length : indice
-let pct=(hecho/total)*100
-
-document.getElementById("progressBar").style.width=pct+"%"
-
-}
-
-function next(){
-
-document.getElementById("answer").innerText=""
-
-if(!modoRepaso){
-
-if(indice>=bloqueActual.length){
-
-modoRepaso=true
-document.getElementById("message").innerText="🔁 Modo repaso de errores"
-
-if(errores.length===0){
-document.getElementById("es").innerText="Bloque completado 🎉"
-return
-}
-
-}else{
-
-actual=bloqueActual[indice]
-indice++
-
-}
-
-}
-
-if(modoRepaso){
-
-let lista=errores.length>0 ? errores : bloqueActual
-
-if(lista.length===0){
-document.getElementById("es").innerText="No hay errores acumulados"
-return
-}
-
-do{
-let i=Math.floor(Math.random()*lista.length)
-actual=lista[i]
-}while(actual===ultima && lista.length>1)
-
-}
-
-ultima=actual
-
-document.getElementById("es").innerText=actual.es
-
-actualizarBarra()
-updateStats()
-
-}
-
-function showAnswer(){
-document.getElementById("answer").innerText=actual.en
-}
-
-function markCorrect(){
-
-ok++
-
-errores=errores.filter(e=>e!==actual)
-
-erroresGlobal=erroresGlobal.filter(e=>e.es!==actual.es)
-
-guardarErroresGlobal()
-
-next()
-
-}
-
-function markWrong(){
-
-bad++
-
-if(!errores.includes(actual)){
-errores.push(actual)
-}
-
-if(!erroresGlobal.find(e=>e.es===actual.es)){
-erroresGlobal.push(actual)
-}
-
-guardarErroresGlobal()
-
-next()
-
-}
-
-function updateStats(){
-
-document.getElementById("okCount").innerText=ok
-document.getElementById("badCount").innerText=bad
-document.getElementById("errorCount").innerText=errores.length
-document.getElementById("globalErrorCount").innerText=erroresGlobal.length
-
-}
-
-cargar()
-
-</script>
-
+  <div class="card">
+    <h1>Entrenamiento de frases</h1>
+
+    <div class="topbar">
+      <div class="field">
+        <label for="blockSelect">Bloque:</label>
+        <select id="blockSelect"></select>
+      </div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="progress-meta">
+        <div id="phraseCounter">Frase 0 / 0</div>
+        <div id="phaseLabel">Cargando…</div>
+      </div>
+      <div class="progress">
+        <div id="progressBar" class="progress-bar"></div>
+      </div>
+    </div>
+
+    <div id="message" class="message"></div>
+
+    <div id="es" class="es">Cargando frases...</div>
+    <div id="answer" class="answer"></div>
+
+    <div class="buttons">
+      <button class="show" id="showBtn">Ver respuesta</button>
+      <button class="ok" id="okBtn">Correcto</button>
+      <button class="bad" id="badBtn">Incorrecto</button>
+    </div>
+
+    <div class="stats">
+      Correctas: <span id="okCount">0</span> |
+      Incorrectas: <span id="badCount">0</span> |
+      Errores bloque: <span id="errorCount">0</span> |
+      Errores acumulados: <span id="globalErrorCount">0</span>
+    </div>
+  </div>
+
+  <script>
+    const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
+    const GLOBAL_ERRORS_KEY = "frases_errores_acumulados_v2";
+
+    let frases = [];
+    let bloqueActual = [];
+    let erroresBloque = [];
+    let erroresAcumulados = [];
+    let colaInicial = [];
+    let indiceInicial = 0;
+    let modoRepaso = false;
+    let actual = null;
+    let ultima = null;
+    let correctas = 0;
+    let incorrectas = 0;
+
+    function parseCSV(text) {
+      const rows = [];
+      let row = [];
+      let cell = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const next = text[i + 1];
+
+        if (ch === '"') {
+          if (inQuotes && next === '"') {
+            cell += '"';
+            i++;
+          } else {
+            inQuotes = !inQuotes;
+          }
+        } else if (ch === ',' && !inQuotes) {
+          row.push(cell);
+          cell = "";
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          if (ch === '\r' && next === '\n') i++;
+          row.push(cell);
+          if (row.some(v => v !== "")) rows.push(row);
+          row = [];
+          cell = "";
+        } else {
+          cell += ch;
+        }
+      }
+
+      row.push(cell);
+      if (row.some(v => v !== "")) rows.push(row);
+      return rows;
+    }
+
+    function shuffle(arr) {
+      const copy = [...arr];
+      for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+      }
+      return copy;
+    }
+
+    function samePhrase(a, b) {
+      return !!a && !!b && a.es === b.es && a.en === b.en;
+    }
+
+    function uniqueByPhrase(list) {
+      const out = [];
+      for (const item of list) {
+        if (!out.some(x => samePhrase(x, item))) out.push(item);
+      }
+      return out;
+    }
+
+    function saveGlobalErrors() {
+      localStorage.setItem(GLOBAL_ERRORS_KEY, JSON.stringify(erroresAcumulados));
+    }
+
+    function loadGlobalErrors() {
+      try {
+        const raw = localStorage.getItem(GLOBAL_ERRORS_KEY);
+        erroresAcumulados = raw ? JSON.parse(raw) : [];
+      } catch {
+        erroresAcumulados = [];
+      }
+    }
+
+    async function cargarSheet() {
+      loadGlobalErrors();
+
+      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
+      const res = await fetch(url);
+      const text = await res.text();
+      const rows = parseCSV(text);
+
+      frases = [];
+
+      for (let i = 1; i < rows.length; i++) {
+        const cols = rows[i];
+        const bloque = (cols[1] || "").trim();   // B
+        const es = (cols[2] || "").trim();       // C
+        const en = (cols[3] || "").trim();       // D
+        const activa = (cols[4] || "").trim().toLowerCase(); // E
+
+        if (!bloque || !es || !en) continue;
+        if (!activa.includes("x")) continue;
+
+        frases.push({ bloque, es, en });
+      }
+
+      initBlocks();
+    }
+
+    function initBlocks() {
+      const select = document.getElementById("blockSelect");
+      select.innerHTML = "";
+
+      const blocks = [...new Set(frases.map(f => f.bloque))];
+      for (const b of blocks) {
+        const opt = document.createElement("option");
+        opt.value = b;
+        opt.textContent = b;
+        select.appendChild(opt);
+      }
+
+      const repaso = document.createElement("option");
+      repaso.value = "__REPASO_ACUMULADO__";
+      repaso.textContent = "repaso acumulado";
+      select.appendChild(repaso);
+
+      select.addEventListener("change", startBlock);
+      startBlock();
+    }
+
+    function startBlock() {
+      const val = document.getElementById("blockSelect").value;
+
+      erroresBloque = [];
+      modoRepaso = false;
+      actual = null;
+      ultima = null;
+      document.getElementById("answer").innerText = "";
+      document.getElementById("message").innerText = "";
+
+      if (val === "__REPASO_ACUMULADO__") {
+        bloqueActual = uniqueByPhrase(erroresAcumulados);
+      } else {
+        bloqueActual = frases.filter(f => f.bloque === val);
+      }
+
+      colaInicial = shuffle(bloqueActual);
+      indiceInicial = 0;
+
+      updateStats();
+      updateProgress();
+      next();
+    }
+
+    function getReviewSource() {
+      const currentMode = document.getElementById("blockSelect").value === "__REPASO_ACUMULADO__";
+      return currentMode ? erroresAcumulados : erroresBloque;
+    }
+
+    function getRandomFrom(list) {
+      if (list.length === 0) return null;
+      if (list.length === 1) return list[0];
+
+      let candidate = null;
+      do {
+        const i = Math.floor(Math.random() * list.length);
+        candidate = list[i];
+      } while (samePhrase(candidate, ultima));
+
+      return candidate;
+    }
+
+    function updateProgress() {
+      const isGlobalReview = document.getElementById("blockSelect").value === "__REPASO_ACUMULADO__";
+      const total = bloqueActual.length;
+
+      let label = "Fase inicial";
+      let counter = "Frase 0 / 0";
+      let pct = 0;
+
+      if (total > 0) {
+        if (!modoRepaso) {
+          label = isGlobalReview ? "Repaso acumulado" : "Fase inicial";
+          counter = `Frase ${Math.min(indiceInicial, total)} / ${total}`;
+          pct = (Math.min(indiceInicial, total) / total) * 100;
+        } else {
+          const fuente = getReviewSource();
+          const remaining = fuente.length;
+          const done = Math.max(total - remaining, 0);
+          label = isGlobalReview ? "Repaso acumulado" : "Modo repaso de errores";
+          counter = `Repaso ${done} / ${total}`;
+          pct = (done / total) * 100;
+        }
+      }
+
+      document.getElementById("phraseCounter").innerText = counter;
+      document.getElementById("phaseLabel").innerText = label;
+      document.getElementById("progressBar").style.width = `${pct}%`;
+    }
+
+    function updateStats() {
+      document.getElementById("okCount").innerText = correctas;
+      document.getElementById("badCount").innerText = incorrectas;
+      document.getElementById("errorCount").innerText = erroresBloque.length;
+      document.getElementById("globalErrorCount").innerText = erroresAcumulados.length;
+    }
+
+    function showDone(msg1, msg2) {
+      document.getElementById("message").innerText = msg1;
+      document.getElementById("es").innerHTML = `<span class="done">${msg2}</span>`;
+      document.getElementById("answer").innerText = "";
+      updateProgress();
+      updateStats();
+    }
+
+    function next() {
+      document.getElementById("answer").innerText = "";
+
+      const isGlobalReview = document.getElementById("blockSelect").value === "__REPASO_ACUMULADO__";
+
+      if (!modoRepaso) {
+        if (indiceInicial >= colaInicial.length) {
+          modoRepaso = true;
+
+          if (isGlobalReview) {
+            if (erroresAcumulados.length === 0) {
+              showDone("Repaso acumulado completado 🎉", "No quedan errores acumulados");
+              return;
+            }
+            document.getElementById("message").innerText = "🔁 Repaso acumulado";
+          } else {
+            if (erroresBloque.length === 0) {
+              showDone("Bloque completado 🎉", "Bloque completado");
+              return;
+            }
+            document.getElementById("message").innerText = "🔁 Modo repaso de errores";
+          }
+        } else {
+          actual = colaInicial[indiceInicial];
+          indiceInicial++;
+          ultima = actual;
+          document.getElementById("es").innerText = actual.es;
+          updateProgress();
+          updateStats();
+          return;
+        }
+      }
+
+      const source = getReviewSource();
+      if (source.length === 0) {
+        if (isGlobalReview) {
+          showDone("Repaso acumulado completado 🎉", "No quedan errores acumulados");
+        } else {
+          showDone("Repaso completado 🎉", "Bloque completado");
+        }
+        return;
+      }
+
+      actual = getRandomFrom(source);
+      ultima = actual;
+      document.getElementById("es").innerText = actual.es;
+      updateProgress();
+      updateStats();
+    }
+
+    function showAnswer() {
+      if (!actual) return;
+      document.getElementById("answer").innerText = actual.en;
+    }
+
+    function removePhraseFrom(list, phrase) {
+      return list.filter(x => !samePhrase(x, phrase));
+    }
+
+    function addPhraseTo(list, phrase) {
+      if (!list.some(x => samePhrase(x, phrase))) list.push(phrase);
+    }
+
+    function markCorrect() {
+      if (!actual) return;
+
+      correctas++;
+      erroresBloque = removePhraseFrom(erroresBloque, actual);
+      erroresAcumulados = removePhraseFrom(erroresAcumulados, actual);
+      saveGlobalErrors();
+      next();
+    }
+
+    function markWrong() {
+      if (!actual) return;
+
+      incorrectas++;
+      addPhraseTo(erroresBloque, actual);
+      addPhraseTo(erroresAcumulados, actual);
+      saveGlobalErrors();
+      next();
+    }
+
+    document.getElementById("showBtn").addEventListener("click", showAnswer);
+    document.getElementById("okBtn").addEventListener("click", markCorrect);
+    document.getElementById("badBtn").addEventListener("click", markWrong);
+
+    cargarSheet().catch(err => {
+      document.getElementById("es").innerText = "Error cargando frases";
+      document.getElementById("answer").innerText = "";
+      document.getElementById("message").innerText = "Revisa permisos del Google Sheet";
+      console.error(err);
+    });
+  </script>
 </body>
 </html>
