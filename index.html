@@ -38,9 +38,7 @@
       background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
       box-shadow:var(--shadow); padding:18px; backdrop-filter:blur(8px); margin-bottom:16px;
     }
-    .filters{
-      display:grid; grid-template-columns: 1.1fr .9fr auto auto; gap:12px; align-items:end;
-    }
+    .filters{display:grid; grid-template-columns:1.1fr .9fr auto auto; gap:12px; align-items:end}
     .field label{display:block; color:var(--muted); font-size:.9rem; margin-bottom:8px}
     .hint{color:var(--muted); font-size:.9rem; margin-top:10px}
     .stats{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px}
@@ -68,19 +66,11 @@
     .feedback strong{color:#fff}
     .mini{font-size:.92rem; color:var(--muted); margin-top:8px}
     .footer-note{text-align:center; color:var(--muted); font-size:.9rem; margin-top:6px}
-    @media (max-width: 820px){
-      .filters{grid-template-columns:1fr 1fr}
-      .filters .full{grid-column:1 / -1}
-    }
-    @media (max-width: 680px){
-      body{padding:12px}
-      .panel{padding:14px}
-      .stats{grid-template-columns:repeat(2,minmax(0,1fr))}
-      .filters{grid-template-columns:1fr}
-      button,.actions button{width:100%}
-      .actions{width:100%}
-      .answer-actions{flex-direction:column}
-      .question-es{font-size:1.4rem}
+    @media (max-width:820px){.filters{grid-template-columns:1fr 1fr}.filters .full{grid-column:1 / -1}}
+    @media (max-width:680px){
+      body{padding:12px}.panel{padding:14px}.stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+      .filters{grid-template-columns:1fr}button,.actions button{width:100%}.actions{width:100%}
+      .answer-actions{flex-direction:column}.question-es{font-size:1.4rem}
     }
   </style>
 </head>
@@ -105,9 +95,7 @@
         </div>
         <div class="field">
           <label for="blockSelect">Bloque / categoría (columna E)</label>
-          <select id="blockSelect">
-            <option value="__ALL__">Todos</option>
-          </select>
+          <select id="blockSelect"><option value="__ALL__">Todos</option></select>
         </div>
         <button class="btn-secondary full" id="applyFilterBtn">Aplicar filtro</button>
         <button class="btn-secondary full" id="reloadSheetBtn">Recargar Sheet</button>
@@ -147,7 +135,8 @@
 
   <script>
     const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
-    const STORAGE_KEY = "entrenamiento_frases_sheet_v4_" + SHEET_ID;
+    const SHEET_GID = "0";
+    const STORAGE_KEY = "entrenamiento_frases_sheet_v5_" + SHEET_ID;
     const FILTER_KEY = "entrenamiento_frases_filters_" + SHEET_ID;
 
     let allRows = [];
@@ -156,90 +145,88 @@
 
     function createInitialState() {
       return {
-        currentBlock: 0,
-        newIndex: 0,
-        reviewQueue: [],
-        reviewMode: false,
-        currentReviewItem: null,
-        correct: 0,
-        wrong: 0,
-        completedBlocks: [],
-        masteredMap: {},
-        answerVisible: false,
-        currentJudged: false
+        currentBlock: 0, newIndex: 0, reviewQueue: [], reviewMode: false, currentReviewItem: null,
+        correct: 0, wrong: 0, completedBlocks: [], masteredMap: {}, answerVisible: false, currentJudged: false
       };
     }
 
-    function saveState() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    }
+    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+    function saveFilters(filters){ localStorage.setItem(FILTER_KEY, JSON.stringify(filters)); }
 
-    function loadState() {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) : null;
-      } catch (e) { return null; }
-    }
-
-    function saveFilters(filters) {
-      localStorage.setItem(FILTER_KEY, JSON.stringify(filters));
-    }
-
-    function loadFilters() {
+    function loadFilters(){
       try {
         const raw = localStorage.getItem(FILTER_KEY);
         return raw ? JSON.parse(raw) : { startRow: 2, block: "__ALL__" };
-      } catch (e) { return { startRow: 2, block: "__ALL__" }; }
+      } catch { return { startRow: 2, block: "__ALL__" }; }
     }
 
-    function phraseId(blockIndex, phraseIndex) {
-      return `b${blockIndex}_p${phraseIndex}`;
+    function phraseId(blockIndex, phraseIndex){ return `b${blockIndex}_p${phraseIndex}`; }
+
+    function parseCSV(text){
+      const rows = [];
+      let row = [], cell = "", inQuotes = false;
+      for (let i = 0; i < text.length; i++) {
+        const ch = text[i];
+        const next = text[i + 1];
+        if (ch === '"') {
+          if (inQuotes && next === '"') { cell += '"'; i++; }
+          else { inQuotes = !inQuotes; }
+        } else if (ch === ',' && !inQuotes) {
+          row.push(cell); cell = "";
+        } else if ((ch === '\n' || ch === '\r') && !inQuotes) {
+          if (ch === '\r' && next === '\n') i++;
+          row.push(cell);
+          if (row.some(v => v !== "")) rows.push(row);
+          row = []; cell = "";
+        } else {
+          cell += ch;
+        }
+      }
+      row.push(cell);
+      if (row.some(v => v !== "")) rows.push(row);
+      return rows;
+    }
+
+    async function fetchWithTimeout(url, ms = 8000){
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), ms);
+      try {
+        const res = await fetch(url, { signal: controller.signal, cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        return await res.text();
+      } finally {
+        clearTimeout(timer);
+      }
     }
 
     async function cargarSheet() {
-      const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json`;
-      const res = await fetch(url);
-      const text = await res.text();
-      const json = JSON.parse(text.substr(47).slice(0, -2));
-      const rows = json.table.rows || [];
+      const csvUrl = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${SHEET_GID}`;
+      const text = await fetchWithTimeout(csvUrl, 8000);
+      const rows = parseCSV(text);
 
       allRows = [];
-      rows.forEach((r, idx) => {
-        const rowNumber = idx + 1;
-        const id = r.c?.[0]?.v != null ? String(r.c[0].v).trim() : "";
-        const es = r.c?.[1]?.v != null ? String(r.c[1].v).trim() : "";
-        const en = r.c?.[3]?.v != null ? String(r.c[3].v).trim() : "";
-        const bloque = r.c?.[4]?.v != null ? String(r.c[4].v).trim() : "";
+      for (let i = 0; i < rows.length; i++) {
+        const rowNumber = i + 1;
+        const cols = rows[i];
+        const id = (cols[0] || "").trim();
+        const es = (cols[1] || "").trim();
+        const en = (cols[3] || "").trim();
+        const bloque = (cols[4] || "").trim();
 
-        const isHeader = rowNumber === 1 || es.toLowerCase().includes("observaciones español") || en.toLowerCase().includes("traducción correcta") || en.toLowerCase().includes("traduccion correcta");
-        if (isHeader) return;
-        if (!es || !en) return;
+        const lowerEs = es.toLowerCase();
+        const lowerEn = en.toLowerCase();
+        const isHeader = rowNumber === 1 || lowerEs.includes("observaciones español") || lowerEn.includes("traducción correcta") || lowerEn.includes("traduccion correcta");
+        if (isHeader) continue;
+        if (!es || !en) continue;
 
         allRows.push({ rowNumber, id, es, en, bloque });
-      });
+      }
     }
 
     function getAvailableBlocks() {
       const set = new Set();
-      allRows.forEach(r => {
-        if (r.bloque) set.add(r.bloque);
-      });
-      return Array.from(set).sort((a, b) => a.localeCompare(b, 'es'));
-    }
-
-    function updateBlockSelect() {
-      const select = document.getElementById("blockSelect");
-      const current = select.value || "__ALL__";
-      const options = ['<option value="__ALL__">Todos</option>']
-        .concat(getAvailableBlocks().map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`));
-      select.innerHTML = options.join("");
-      const filters = loadFilters();
-      const desired = filters.block || current || "__ALL__";
-      if ([...select.options].some(o => o.value === desired)) {
-        select.value = desired;
-      } else {
-        select.value = "__ALL__";
-      }
+      allRows.forEach(r => { if (r.bloque) set.add(r.bloque); });
+      return Array.from(set).sort((a, b) => a.localeCompare(b, "es"));
     }
 
     function escapeHtml(text) {
@@ -250,10 +237,20 @@
         .replaceAll('"', "&quot;");
     }
 
+    function updateBlockSelect() {
+      const select = document.getElementById("blockSelect");
+      const saved = loadFilters().block || "__ALL__";
+      const html = ['<option value="__ALL__">Todos</option>']
+        .concat(getAvailableBlocks().map(b => `<option value="${escapeHtml(b)}">${escapeHtml(b)}</option>`))
+        .join("");
+      select.innerHTML = html;
+      if ([...select.options].some(o => o.value === saved)) select.value = saved;
+      else select.value = "__ALL__";
+    }
+
     function buildBlocksFromFilters() {
       const startRow = Math.max(2, parseInt(document.getElementById("startRowInput").value || "2", 10));
       const blockValue = document.getElementById("blockSelect").value || "__ALL__";
-
       saveFilters({ startRow, block: blockValue });
 
       const filtered = allRows.filter(r => r.rowNumber >= startRow && (blockValue === "__ALL__" || r.bloque === blockValue));
@@ -270,31 +267,19 @@
       updateBlockSelect();
     }
 
-    function getTotalPhrases() {
-      return BLOCKS.reduce((sum, block) => sum + block.length, 0);
-    }
+    function getTotalPhrases(){ return BLOCKS.reduce((sum, block) => sum + block.length, 0); }
+    function getMasteredCount(){ return Object.keys(state.masteredMap).length; }
+    function getCurrentBlockLength(){ return BLOCKS[state.currentBlock] ? BLOCKS[state.currentBlock].length : 0; }
 
-    function getMasteredCount() {
-      return Object.keys(state.masteredMap).length;
-    }
-
-    function getCurrentBlockLength() {
-      return BLOCKS[state.currentBlock] ? BLOCKS[state.currentBlock].length : 0;
-    }
-
-    function blockIsFinished(blockIndex) {
+    function blockIsFinished(blockIndex){
       const block = BLOCKS[blockIndex] || [];
       if (block.length === 0) return false;
-      for (let i = 0; i < block.length; i++) {
-        if (!state.masteredMap[phraseId(blockIndex, i)]) return false;
-      }
+      for (let i = 0; i < block.length; i++) if (!state.masteredMap[phraseId(blockIndex, i)]) return false;
       return true;
     }
 
-    function markBlockCompletedIfNeeded(blockIndex) {
-      if (blockIsFinished(blockIndex) && !state.completedBlocks.includes(blockIndex)) {
-        state.completedBlocks.push(blockIndex);
-      }
+    function markBlockCompletedIfNeeded(blockIndex){
+      if (blockIsFinished(blockIndex) && !state.completedBlocks.includes(blockIndex)) state.completedBlocks.push(blockIndex);
     }
 
     function getCurrentPhraseData() {
@@ -305,38 +290,25 @@
         if (!state.currentReviewItem) return null;
         const item = state.currentReviewItem;
         if (!BLOCKS[item.blockIndex] || !BLOCKS[item.blockIndex][item.phraseIndex]) return null;
-        return {
-          blockIndex: item.blockIndex,
-          phraseIndex: item.phraseIndex,
-          phrase: BLOCKS[item.blockIndex][item.phraseIndex]
-        };
+        return { blockIndex: item.blockIndex, phraseIndex: item.phraseIndex, phrase: BLOCKS[item.blockIndex][item.phraseIndex] };
       }
 
       if (state.newIndex >= block.length) return null;
-
-      return {
-        blockIndex: state.currentBlock,
-        phraseIndex: state.newIndex,
-        phrase: block[state.newIndex]
-      };
+      return { blockIndex: state.currentBlock, phraseIndex: state.newIndex, phrase: block[state.newIndex] };
     }
 
-    function addToReviewQueue(blockIndex, phraseIndex) {
+    function addToReviewQueue(blockIndex, phraseIndex){
       const exists = state.reviewQueue.some(item => item.blockIndex === blockIndex && item.phraseIndex === phraseIndex);
       if (!exists) state.reviewQueue.push({ blockIndex, phraseIndex });
     }
 
-    function removeFromReviewQueue(blockIndex, phraseIndex) {
+    function removeFromReviewQueue(blockIndex, phraseIndex){
       state.reviewQueue = state.reviewQueue.filter(item => !(item.blockIndex === blockIndex && item.phraseIndex === phraseIndex));
     }
 
-    function clearCardState() {
-      state.answerVisible = false;
-      state.currentJudged = false;
-      saveState();
-    }
+    function clearCardState(){ state.answerVisible = false; state.currentJudged = false; saveState(); }
 
-    function afterCorrect(blockIndex, phraseIndex) {
+    function afterCorrect(blockIndex, phraseIndex){
       state.masteredMap[phraseId(blockIndex, phraseIndex)] = true;
       removeFromReviewQueue(blockIndex, phraseIndex);
       state.correct++;
@@ -345,7 +317,7 @@
       saveState();
     }
 
-    function afterWrong(blockIndex, phraseIndex) {
+    function afterWrong(blockIndex, phraseIndex){
       delete state.masteredMap[phraseId(blockIndex, phraseIndex)];
       addToReviewQueue(blockIndex, phraseIndex);
       state.wrong++;
@@ -353,7 +325,7 @@
       saveState();
     }
 
-    function enterReviewModeIfNeeded() {
+    function enterReviewModeIfNeeded(){
       if (state.reviewQueue.length > 0) {
         state.reviewMode = true;
         state.currentReviewItem = state.reviewQueue[0];
@@ -363,34 +335,28 @@
       }
     }
 
-    function advanceBlockIfFinished() {
+    function advanceBlockIfFinished(){
       markBlockCompletedIfNeeded(state.currentBlock);
-
       if (!blockIsFinished(state.currentBlock)) {
         enterReviewModeIfNeeded();
         clearCardState();
         saveState();
         return;
       }
-
       if (state.currentBlock < BLOCKS.length - 1) {
         state.currentBlock++;
         state.newIndex = 0;
-        state.reviewMode = false;
-        state.currentReviewItem = null;
-        state.reviewQueue = [];
       } else {
         state.newIndex = getCurrentBlockLength();
-        state.reviewMode = false;
-        state.currentReviewItem = null;
-        state.reviewQueue = [];
       }
-
+      state.reviewMode = false;
+      state.currentReviewItem = null;
+      state.reviewQueue = [];
       clearCardState();
       saveState();
     }
 
-    function advanceWhenNoCurrent() {
+    function advanceWhenNoCurrent(){
       if (state.reviewQueue.length > 0) {
         state.reviewMode = true;
         state.currentReviewItem = state.reviewQueue[0];
@@ -402,15 +368,12 @@
       scrollToQuestion();
     }
 
-    function goNext() {
+    function goNext(){
       if (BLOCKS.length === 0) return;
       const current = getCurrentPhraseData();
       clearFeedback();
 
-      if (!current) {
-        advanceWhenNoCurrent();
-        return;
-      }
+      if (!current) { advanceWhenNoCurrent(); return; }
 
       if (!state.currentJudged) {
         showFeedback("warn", "<strong>Aún no la has valorado</strong><div class='mini'>Pulsa primero en “Ver respuesta” y luego marca “Correcto” o “Incorrecto”.</div>");
@@ -419,9 +382,8 @@
 
       if (state.reviewMode) {
         state.currentReviewItem = null;
-        if (state.reviewQueue.length > 0) {
-          state.currentReviewItem = state.reviewQueue[0];
-        } else {
+        if (state.reviewQueue.length > 0) state.currentReviewItem = state.reviewQueue[0];
+        else {
           state.reviewMode = false;
           state.currentReviewItem = null;
           advanceBlockIfFinished();
@@ -445,7 +407,7 @@
       scrollToQuestion();
     }
 
-    function showCompletionIfNeeded() {
+    function showCompletionIfNeeded(){
       const total = getTotalPhrases();
       return total > 0 && getMasteredCount() === total && state.reviewQueue.length === 0;
     }
@@ -467,7 +429,7 @@
     const correctBtn = document.getElementById("correctBtn");
     const wrongBtn = document.getElementById("wrongBtn");
 
-    function render() {
+    function render(){
       if (allRows.length === 0) {
         blockStat.textContent = "1 / 1";
         correctStat.textContent = "0";
@@ -500,8 +462,7 @@
         return;
       }
 
-      const totalBlocks = BLOCKS.length;
-      blockStat.textContent = `${Math.min(state.currentBlock + 1, totalBlocks)} / ${totalBlocks}`;
+      blockStat.textContent = `${Math.min(state.currentBlock + 1, BLOCKS.length)} / ${BLOCKS.length}`;
       correctStat.textContent = state.correct;
       wrongStat.textContent = state.wrong;
       pendingStat.textContent = state.reviewQueue.length;
@@ -533,13 +494,8 @@
       }
 
       const { blockIndex, phraseIndex, phrase } = current;
-      if (state.reviewMode) {
-        modeBadge.textContent = "Modo: repaso de errores";
-        modeBadge.className = "mode-badge mode-review";
-      } else {
-        modeBadge.textContent = "Modo: frases nuevas";
-        modeBadge.className = "mode-badge mode-new";
-      }
+      modeBadge.textContent = state.reviewMode ? "Modo: repaso de errores" : "Modo: frases nuevas";
+      modeBadge.className = state.reviewMode ? "mode-badge mode-review" : "mode-badge mode-new";
 
       const bloqueTxt = phrase.bloque ? ` · ${phrase.bloque}` : "";
       questionNumber.textContent = `Bloque ${blockIndex + 1} · Frase ${phraseIndex + 1} de ${BLOCKS[blockIndex].length}${bloqueTxt} · Fila ${phrase.rowNumber}`;
@@ -551,59 +507,40 @@
         wrongBtn.disabled = state.currentJudged;
       } else {
         answerBox.innerHTML = '<span class="answer-placeholder">Pulsa en “Ver respuesta” cuando quieras comprobarla.</span>';
-        correctBtn.disabled = true;
-        wrongBtn.disabled = true;
+        correctBtn.disabled = true; wrongBtn.disabled = true;
       }
       showAnswerBtn.disabled = state.answerVisible;
     }
 
-    function showFeedback(type, html) {
-      feedback.className = `feedback ${type}`;
-      feedback.innerHTML = html;
-    }
+    function showFeedback(type, html){ feedback.className = `feedback ${type}`; feedback.innerHTML = html; }
+    function clearFeedback(){ feedback.className = "feedback"; feedback.innerHTML = ""; }
+    function scrollToQuestion(){ questionCard.scrollIntoView({ behavior:"smooth", block:"start" }); }
 
-    function clearFeedback() {
-      feedback.className = "feedback";
-      feedback.innerHTML = "";
-    }
-
-    function scrollToQuestion() {
-      questionCard.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-
-    function showAnswer() {
+    function showAnswer(){
       if (showCompletionIfNeeded()) return;
-      state.answerVisible = true;
-      saveState();
-      render();
+      state.answerVisible = true; saveState(); render();
       showFeedback("info", "<strong>Respuesta mostrada</strong><div class='mini'>Ahora decide si la habías dicho bien o mal.</div>");
     }
 
-    function markCorrect() {
+    function markCorrect(){
       const current = getCurrentPhraseData();
       if (!current || !state.answerVisible || state.currentJudged) return;
-      afterCorrect(current.blockIndex, current.phraseIndex);
-      render();
+      afterCorrect(current.blockIndex, current.phraseIndex); render();
       showFeedback("ok", "<strong>Correcto ✅</strong><div class='mini'>La frase queda superada y sale del repaso si estaba pendiente.</div>");
     }
 
-    function markWrong() {
+    function markWrong(){
       const current = getCurrentPhraseData();
       if (!current || !state.answerVisible || state.currentJudged) return;
-      afterWrong(current.blockIndex, current.phraseIndex);
-      render();
+      afterWrong(current.blockIndex, current.phraseIndex); render();
       showFeedback("bad", "<strong>Incorrecto ❌</strong><div class='mini'>La frase se añade al repaso hasta que la marques como correcta.</div>");
     }
 
-    function resetState() {
-      state = createInitialState();
-      saveState();
-      clearFeedback();
-      render();
-      scrollToQuestion();
+    function resetState(){
+      state = createInitialState(); saveState(); clearFeedback(); render(); scrollToQuestion();
     }
 
-    async function initializeApp() {
+    async function initializeApp(){
       render();
       await cargarSheet();
       syncUiFromSavedFilters();
@@ -626,12 +563,17 @@
     });
 
     initializeApp().catch(err => {
+      blockStat.textContent = "1 / 1";
+      correctStat.textContent = "0";
+      wrongStat.textContent = "0";
+      pendingStat.textContent = "0";
+      progressText.textContent = "Error de carga";
+      progressPercent.textContent = "0%";
+      progressBar.style.width = "0%";
       questionNumber.textContent = "Error cargando frases";
       questionEs.textContent = "No se pudo leer el Google Sheet";
-      answerBox.innerHTML = '<span class="answer-placeholder">Revisa que el documento sea público y que el enlace sea correcto.</span>';
-      showAnswerBtn.disabled = true;
-      correctBtn.disabled = true;
-      wrongBtn.disabled = true;
+      answerBox.innerHTML = '<span class="answer-placeholder">Revisa que el documento sea público. Si ya lo está, recarga la página y espera unos segundos.</span>';
+      showAnswerBtn.disabled = true; correctBtn.disabled = true; wrongBtn.disabled = true;
       console.error(err);
     });
   </script>
