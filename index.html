@@ -3,628 +3,652 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Entrenador de frases</title>
+  <title>Entrenamiento de frases 2.1</title>
   <style>
-    body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      margin: 0;
-      background: #f5f7fb;
-      color: #111827;
+    :root{
+      --bg: #0f172a;
+      --panel: #111827;
+      --panel-2: #1f2937;
+      --text: #f8fafc;
+      --muted: #94a3b8;
+      --ok: #22c55e;
+      --bad: #ef4444;
+      --accent: #38bdf8;
+      --accent-2: #0ea5e9;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 10px 30px rgba(0,0,0,0.25);
+      --radius: 18px;
     }
 
-    .wrap {
-      max-width: 760px;
-      margin: 0 auto;
-      padding: 16px;
+    * { box-sizing: border-box; }
+
+    body{
+      margin:0;
+      font-family: Arial, Helvetica, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(56,189,248,.15), transparent 30%),
+        linear-gradient(180deg, #020617 0%, #0f172a 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 18px;
     }
 
-    h1 {
-      margin: 0 0 10px;
-      font-size: 24px;
-    }
-
-    .card {
-      background: white;
-      border-radius: 16px;
-      padding: 14px;
-      box-shadow: 0 2px 12px rgba(0,0,0,.08);
-      margin-bottom: 12px;
-    }
-
-    .muted {
-      color: #6b7280;
-      font-size: 13px;
-      margin-bottom: 6px;
-    }
-
-    input {
+    .app{
       width: 100%;
-      box-sizing: border-box;
-      border: 1px solid #d1d5db;
-      border-radius: 12px;
-      padding: 10px 12px;
-      font-size: 16px;
+      max-width: 900px;
+      margin: 0 auto;
     }
 
-    .row {
-      display: grid;
-      grid-template-columns: 70px 1fr 70px 1fr 70px 1fr;
-      gap: 8px;
-      align-items: center;
+    .topbar{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      flex-wrap:wrap;
+      margin-bottom:16px;
     }
 
-    .btns {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 10px;
-      margin-top: 12px;
+    .title-wrap h1{
+      margin:0;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      line-height:1.1;
     }
 
-    button {
-      border: 0;
+    .title-wrap p{
+      margin:6px 0 0 0;
+      color:var(--muted);
+      font-size:0.95rem;
+    }
+
+    .actions{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+    }
+
+    button{
+      border:none;
       border-radius: 12px;
       padding: 12px 16px;
-      font-size: 16px;
-      cursor: pointer;
+      font-size: 0.98rem;
+      font-weight: 700;
+      cursor:pointer;
+      transition: .18s ease;
     }
 
-    button:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-    }
+    button:hover{ transform: translateY(-1px); }
+    button:disabled{ opacity:.55; cursor:not-allowed; transform:none; }
 
-    .primary {
-      background: #2563eb;
+    .btn-primary{
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
       color: white;
+      box-shadow: var(--shadow);
     }
 
-    .ok {
-      background: #10b981;
-      color: white;
+    .btn-secondary{ background: #334155; color: white; }
+    .btn-ok{ background: var(--ok); color:#062b14; }
+    .btn-bad{ background: var(--bad); color:white; }
+
+    .panel{
+      background: rgba(17, 24, 39, 0.9);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      backdrop-filter: blur(8px);
+      margin-bottom:16px;
     }
 
-    .wrong {
-      background: #ef4444;
-      color: white;
+    .stats{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap:12px;
     }
 
-    .soft {
-      background: #e8eefc;
-      color: #111827;
+    .stat{
+      background: rgba(255,255,255,0.03);
+      border:1px solid var(--border);
+      border-radius: 14px;
+      padding: 14px;
     }
 
-    .big {
-      font-size: 24px;
-      line-height: 1.3;
-      min-height: 54px;
+    .stat .label{
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-bottom: 8px;
     }
 
-    .answer {
-      font-size: 20px;
-      line-height: 1.3;
-      min-height: 46px;
+    .stat .value{
+      font-size: 1.35rem;
+      font-weight: 700;
     }
 
-    .stats {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 10px;
+    .progress-wrap{ margin-top:14px; }
+
+    .progress-label{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:8px;
+      color:var(--muted);
+      font-size:.95rem;
     }
 
-    .pill {
-      background: #f1f5f9;
-      border-radius: 12px;
-      padding: 12px;
-      text-align: center;
+    .progress{
+      width:100%;
+      height:14px;
+      background:#0b1220;
+      border-radius:999px;
+      overflow:hidden;
+      border:1px solid var(--border);
     }
 
-    .status {
-      margin-top: 8px;
-      font-size: 14px;
-      color: #374151;
+    .progress-bar{
+      height:100%;
+      width:0%;
+      background: linear-gradient(90deg, var(--accent), #22d3ee);
+      transition: width .3s ease;
     }
 
-    @media (max-width: 640px) {
-      .wrap {
-        padding: 10px;
-      }
+    .mode-badge{
+      display:inline-block;
+      padding:8px 12px;
+      border-radius:999px;
+      font-size:.88rem;
+      font-weight:700;
+      margin-bottom:14px;
+      border:1px solid var(--border);
+    }
 
-      .row,
-      .stats {
-        grid-template-columns: 1fr;
-      }
+    .mode-new{ background: rgba(56,189,248,.15); color:#7dd3fc; }
+    .mode-review{ background: rgba(239,68,68,.15); color:#fca5a5; }
 
-      .big {
-        font-size: 21px;
-      }
+    .question-card{ scroll-margin-top: 16px; }
 
-      .answer {
-        font-size: 18px;
-      }
+    .question-number{
+      color:var(--muted);
+      font-size:0.95rem;
+      margin-bottom:10px;
+    }
 
-      button {
-        width: 100%;
-      }
+    .question-es{
+      font-size: clamp(1.25rem, 3.4vw, 2rem);
+      font-weight: 700;
+      line-height:1.3;
+      margin-bottom: 16px;
+    }
 
-      .card {
-        padding: 12px;
-        margin-bottom: 10px;
-      }
+    .answer-box{
+      background:#0b1220;
+      border:1px solid var(--border);
+      border-radius:14px;
+      padding:18px;
+      min-height:72px;
+      display:flex;
+      align-items:center;
+      font-size:1.05rem;
+      line-height:1.5;
+    }
+
+    .answer-placeholder{ color:var(--muted); }
+
+    .answer-actions{
+      display:flex;
+      gap:10px;
+      margin-top:12px;
+      flex-wrap:wrap;
+    }
+
+    .feedback{
+      margin-top: 16px;
+      padding: 14px;
+      border-radius: 14px;
+      display:none;
+      line-height:1.5;
+      border:1px solid var(--border);
+    }
+
+    .feedback.ok{ display:block; background: rgba(34,197,94,.12); color:#bbf7d0; }
+    .feedback.bad{ display:block; background: rgba(239,68,68,.12); color:#fecaca; }
+    .feedback.info{ display:block; background: rgba(56,189,248,.12); color:#bae6fd; }
+    .feedback strong{ color:white; }
+
+    .mini{
+      font-size:.92rem;
+      color:var(--muted);
+      margin-top:8px;
+    }
+
+    .footer-note{
+      text-align:center;
+      color:var(--muted);
+      font-size:0.9rem;
+      margin-top:6px;
+    }
+
+    @media (max-width: 680px){
+      body{ padding:12px; }
+      .panel{ padding:14px; }
+      .stats{ grid-template-columns: repeat(2, minmax(0,1fr)); }
+      button{ width:100%; }
+      .actions{ width:100%; }
+      .actions button{ flex:1 1 100%; }
+      .answer-actions{ flex-direction:column; }
+      .question-es{ font-size:1.4rem; }
     }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Entrenador de frases</h1>
-
-    <div class="card">
-      <div class="muted">Google Sheets conectado</div>
-      <div class="status" id="status">Cargando frases desde Google Sheets...</div>
-      <div class="btns">
-        <button class="primary" id="reloadBtn">Actualizar frases</button>
-        <button class="soft" id="resetProgressBtn">Reiniciar progreso</button>
+  <div class="app">
+    <div class="topbar">
+      <div class="title-wrap">
+        <h1>Entrenamiento de frases 2.1</h1>
+        <p>Modo speaking: tú decides si ha estado bien o mal.</p>
+      </div>
+      <div class="actions">
+        <button class="btn-secondary" id="resetProgressBtn">Reiniciar progreso</button>
+        <button class="btn-primary" id="nextBtnTop">Siguiente</button>
       </div>
     </div>
 
-    <div class="card">
-      <div class="row">
-        <div class="muted">Bloque</div>
-        <input id="blockSize" type="number" min="1" value="10" />
-        <div class="muted">%</div>
-        <input id="threshold" type="number" min="1" max="100" value="90" />
-        <div class="muted">Inicio</div>
-        <input id="startId" type="number" min="1" value="1" />
-      </div>
-
-      <div class="btns">
-        <button class="soft" id="startBtn">Empezar</button>
-        <button class="soft" id="nextBtn">Siguiente</button>
-        <button class="soft" id="nextBlockBtn">Siguiente bloque</button>
-      </div>
-
-      <div class="status" id="blockInfo">Bloque: —</div>
-    </div>
-
-    <div class="card">
-      <div class="muted">Frase en español</div>
-      <div class="big" id="spanish">—</div>
-    </div>
-
-    <div class="card">
-      <div class="muted">Respuesta en inglés</div>
-      <div class="answer" id="english">Pulsa “Ver respuesta” cuando ya la hayas pensado.</div>
-      <div class="btns">
-        <button class="primary" id="revealBtn">Ver respuesta</button>
-        <button class="ok" id="okBtn" disabled>OK</button>
-        <button class="wrong" id="wrongBtn" disabled>WRONG</button>
-      </div>
-    </div>
-
-    <div class="card">
+    <div class="panel">
       <div class="stats">
-        <div class="pill">
-          <div class="muted">Aciertos</div>
-          <div id="correct">0</div>
+        <div class="stat">
+          <div class="label">Bloque</div>
+          <div class="value" id="blockStat">1 / 1</div>
         </div>
-        <div class="pill">
-          <div class="muted">Errores</div>
-          <div id="wrong">0</div>
+        <div class="stat">
+          <div class="label">Correctas</div>
+          <div class="value" id="correctStat">0</div>
         </div>
-        <div class="pill">
-          <div class="muted">Precisión</div>
-          <div id="accuracy">0%</div>
+        <div class="stat">
+          <div class="label">Incorrectas</div>
+          <div class="value" id="wrongStat">0</div>
+        </div>
+        <div class="stat">
+          <div class="label">Pendientes de repaso</div>
+          <div class="value" id="pendingStat">0</div>
+        </div>
+      </div>
+
+      <div class="progress-wrap">
+        <div class="progress-label">
+          <span id="progressText">Progreso</span>
+          <span id="progressPercent">0%</span>
+        </div>
+        <div class="progress">
+          <div class="progress-bar" id="progressBar"></div>
         </div>
       </div>
     </div>
+
+    <div class="panel question-card" id="questionCard">
+      <div class="mode-badge mode-new" id="modeBadge">Modo: frases nuevas</div>
+      <div class="question-number" id="questionNumber">Frase 1</div>
+      <div class="question-es" id="questionEs">Cargando...</div>
+
+      <div class="answer-box" id="answerBox">
+        <span class="answer-placeholder">Pulsa en “Ver respuesta” cuando quieras comprobarla.</span>
+      </div>
+
+      <div class="answer-actions">
+        <button class="btn-primary" id="showAnswerBtn">Ver respuesta</button>
+        <button class="btn-ok" id="correctBtn" disabled>Correcto</button>
+        <button class="btn-bad" id="wrongBtn" disabled>Incorrecto</button>
+        <button class="btn-secondary" id="nextBtnBottom">Siguiente</button>
+      </div>
+
+      <div class="feedback" id="feedback"></div>
+    </div>
+
+    <div class="footer-note">El progreso se guarda en este dispositivo.</div>
   </div>
 
   <script>
-    const SHEET_URL = "https://docs.google.com/spreadsheets/d/1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY/export?format=csv&gid=0";
-    const STORAGE_KEY = "trainer_frases_v2";
+    const BLOCKS = [
+      [
+        { es: "Tengo hambre.", en: "I am hungry." },
+        { es: "Tengo sueño.", en: "I am sleepy." },
+        { es: "Tengo 20 años.", en: "I am 20 years old." },
+        { es: "Voy a estudiar ahora.", en: "I am going to study now." },
+        { es: "Ella está en casa.", en: "She is at home." }
+      ],
+      [
+        { es: "Ayer fui al supermercado.", en: "Yesterday I went to the supermarket." },
+        { es: "Nunca he estado en Londres.", en: "I have never been to London." },
+        { es: "¿Puedes ayudarme?", en: "Can you help me?" },
+        { es: "No entiendo esta palabra.", en: "I do not understand this word." },
+        { es: "Llevo dos horas esperando.", en: "I have been waiting for two hours." }
+      ]
+    ];
 
-    let allData = [];
-    let blockStart = 1;
-    let blockSize = 10;
-    let threshold = 90;
+    const STORAGE_KEY = "entrenamiento_frases_v21_progress";
 
-    let asked = new Set();
-    let wrongQueue = [];
-    let current = null;
-    let revealed = false;
-    let correctCount = 0;
-    let wrongCount = 0;
-    let failMap = {};
+    let state = loadState() || createInitialState();
 
-    const el = id => document.getElementById(id);
-
-    function normalize(s) {
-      return String(s || "")
-        .replace(/^\uFEFF/, "")
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .toUpperCase();
-    }
-
-    function detectDelimiter(text) {
-      const first = text.split(/\r?\n/).find(l => l.trim() !== "") || "";
-      if (first.includes(";")) return ";";
-      if (first.includes("\t")) return "\t";
-      return ",";
-    }
-
-    function parseDelimitedLine(line, delimiter) {
-      const result = [];
-      let field = "";
-      let inQuotes = false;
-
-      for (let i = 0; i < line.length; i++) {
-        const char = line[i];
-
-        if (char === '"') {
-          if (inQuotes && line[i + 1] === '"') {
-            field += '"';
-            i++;
-          } else {
-            inQuotes = !inQuotes;
-          }
-        } else if (char === delimiter && !inQuotes) {
-          result.push(field);
-          field = "";
-        } else {
-          field += char;
-        }
-      }
-
-      result.push(field);
-      return result;
-    }
-
-    function parseCSV(text) {
-      const delimiter = detectDelimiter(text);
-
-      const rows = text
-        .split(/\r?\n/)
-        .filter(l => l.trim() !== "")
-        .map(line => parseDelimitedLine(line, delimiter));
-
-      if (!rows.length) {
-        throw new Error("El CSV está vacío.");
-      }
-
-      const header = rows[0].map(normalize);
-
-      const idIndex = header.findIndex(h => h === "ID");
-      const esIndex = header.findIndex(h => h === "ESPANOL");
-      const enIndex = header.findIndex(h => h === "TRADUCCION CORRECTA");
-      const actIndex = header.findIndex(h => h === "ACTIVA");
-
-      if (idIndex === -1 || esIndex === -1 || enIndex === -1) {
-        throw new Error("La hoja debe incluir las columnas ID, ESPAÑOL y TRADUCCIÓN CORRECTA.");
-      }
-
-      return rows
-        .slice(1)
-        .map(r => ({
-          id: Number(r[idIndex]),
-          es: (r[esIndex] || "").trim(),
-          en: (r[enIndex] || "").trim(),
-          act: actIndex >= 0 ? String(r[actIndex] || "").trim() : "1"
-        }))
-        .filter(x =>
-          Number.isFinite(x.id) &&
-          x.es &&
-          x.en &&
-          (x.act === "1" || x.act === "")
-        )
-        .sort((a, b) => a.id - b.id);
-    }
-
-    function saveProgress() {
-      const data = {
-        blockStart,
-        blockSize,
-        threshold,
-        asked: Array.from(asked),
-        wrongQueue,
-        currentId: current ? current.id : null,
-        revealed,
-        correctCount,
-        wrongCount,
-        failMap
+    function createInitialState() {
+      return {
+        currentBlock: 0,
+        newIndex: 0,
+        reviewQueue: [],
+        reviewMode: false,
+        currentReviewItem: null,
+        correct: 0,
+        wrong: 0,
+        completedBlocks: [],
+        masteredMap: {},
+        answerVisible: false,
+        currentJudged: false
       };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     }
 
-    function loadProgress() {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return;
-
+    function loadState() {
       try {
-        const data = JSON.parse(raw);
-
-        blockStart = Number(data.blockStart || 1);
-        blockSize = Number(data.blockSize || 10);
-        threshold = Number(data.threshold || 90);
-        asked = new Set(Array.isArray(data.asked) ? data.asked : []);
-        wrongQueue = Array.isArray(data.wrongQueue) ? data.wrongQueue : [];
-        revealed = Boolean(data.revealed);
-        correctCount = Number(data.correctCount || 0);
-        wrongCount = Number(data.wrongCount || 0);
-        failMap = data.failMap || {};
-
-        el("blockSize").value = blockSize;
-        el("threshold").value = threshold;
-        el("startId").value = blockStart;
-
-        if (data.currentId && allData.length) {
-          current = allData.find(x => x.id === data.currentId) || null;
-        }
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
       } catch (e) {
-        console.error("No se pudo cargar progreso:", e);
+        return null;
       }
     }
 
-    function clearProgress() {
-      localStorage.removeItem(STORAGE_KEY);
+    function saveState() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
-    async function loadRemoteCSV() {
-      try {
-        el("status").textContent = "Cargando frases...";
+    function phraseId(blockIndex, phraseIndex) {
+      return `b${blockIndex}_p${phraseIndex}`;
+    }
 
-        const response = await fetch(SHEET_URL, { cache: "no-store" });
+    function getTotalPhrases() {
+      return BLOCKS.reduce((sum, block) => sum + block.length, 0);
+    }
 
-        if (!response.ok) {
-          throw new Error("No se pudo descargar el CSV de Google Sheets.");
-        }
+    function getMasteredCount() {
+      return Object.keys(state.masteredMap).length;
+    }
 
-        const text = await response.text();
-        allData = parseCSV(text);
+    function blockIsFinished(blockIndex) {
+      const block = BLOCKS[blockIndex];
+      for (let i = 0; i < block.length; i++) {
+        if (!state.masteredMap[phraseId(blockIndex, i)]) return false;
+      }
+      return true;
+    }
 
-        if (!allData.length) {
-          throw new Error("No hay frases activas válidas.");
-        }
-
-        loadProgress();
-        renderCurrentState();
-
-        el("status").textContent = "Frases cargadas: " + allData.length;
-      } catch (err) {
-        el("status").textContent = "Error: " + err.message;
-        alert("Error al cargar Google Sheets: " + err.message);
+    function markBlockCompletedIfNeeded(blockIndex) {
+      if (blockIsFinished(blockIndex) && !state.completedBlocks.includes(blockIndex)) {
+        state.completedBlocks.push(blockIndex);
       }
     }
 
-    function currentBlockData() {
-      const end = blockStart + blockSize - 1;
-      return allData.filter(x => x.id >= blockStart && x.id <= end);
-    }
+    function getCurrentPhraseData() {
+      const block = BLOCKS[state.currentBlock];
+      if (!block) return null;
 
-    function updateStats() {
-      const total = correctCount + wrongCount;
-      const acc = total ? Math.round(correctCount / total * 100) : 0;
-
-      el("correct").textContent = correctCount;
-      el("wrong").textContent = wrongCount;
-      el("accuracy").textContent = acc + "%";
-      el("blockInfo").textContent =
-        "Bloque: " + blockStart + "–" + (blockStart + blockSize - 1) + " · Respondidas: " + total;
-    }
-
-    function canAdvance() {
-      const total = correctCount + wrongCount;
-      const block = currentBlockData();
-      const minimum = Math.min(blockSize, block.length);
-      const acc = total ? Math.round(correctCount / total * 100) : 0;
-
-      return total >= minimum && acc >= threshold;
-    }
-
-    function resetBlockStats() {
-      asked = new Set();
-      wrongQueue = [];
-      current = null;
-      revealed = false;
-      correctCount = 0;
-      wrongCount = 0;
-      failMap = {};
-
-      el("correct").textContent = "0";
-      el("wrong").textContent = "0";
-      el("accuracy").textContent = "0%";
-      el("english").textContent = "Pulsa “Ver respuesta” cuando ya la hayas pensado.";
-      el("okBtn").disabled = true;
-      el("wrongBtn").disabled = true;
-      el("revealBtn").disabled = false;
-
-      updateStats();
-      saveProgress();
-    }
-
-    function enqueueError(id) {
-      const fails = failMap[id] || 0;
-      const repeats = Math.min(6, 2 + fails); // cada fallo hace que reaparezca más veces
-
-      for (let i = 0; i < repeats; i++) {
-        wrongQueue.push(id);
+      if (state.reviewMode) {
+        if (!state.currentReviewItem) return null;
+        const item = state.currentReviewItem;
+        return {
+          blockIndex: item.blockIndex,
+          phraseIndex: item.phraseIndex,
+          phrase: BLOCKS[item.blockIndex][item.phraseIndex]
+        };
       }
+
+      if (state.newIndex >= block.length) return null;
+
+      return {
+        blockIndex: state.currentBlock,
+        phraseIndex: state.newIndex,
+        phrase: block[state.newIndex]
+      };
     }
 
-    function getPriorityCandidate(block) {
-      while (wrongQueue.length > 0) {
-        const id = wrongQueue.shift();
-        const candidate = block.find(x => x.id === id && !asked.has(x.id));
-        if (candidate) return candidate;
+    function addToReviewQueue(blockIndex, phraseIndex) {
+      const exists = state.reviewQueue.some(
+        item => item.blockIndex === blockIndex && item.phraseIndex === phraseIndex
+      );
+      if (!exists) state.reviewQueue.push({ blockIndex, phraseIndex });
+    }
+
+    function removeFromReviewQueue(blockIndex, phraseIndex) {
+      state.reviewQueue = state.reviewQueue.filter(
+        item => !(item.blockIndex === blockIndex && item.phraseIndex === phraseIndex)
+      );
+    }
+
+    function clearCardState() {
+      state.answerVisible = false;
+      state.currentJudged = false;
+      saveState();
+    }
+
+    function afterCorrect(blockIndex, phraseIndex) {
+      state.masteredMap[phraseId(blockIndex, phraseIndex)] = true;
+      removeFromReviewQueue(blockIndex, phraseIndex);
+      state.correct++;
+      state.currentJudged = true;
+      markBlockCompletedIfNeeded(blockIndex);
+      saveState();
+    }
+
+    function afterWrong(blockIndex, phraseIndex) {
+      delete state.masteredMap[phraseId(blockIndex, phraseIndex)];
+      addToReviewQueue(blockIndex, phraseIndex);
+      state.wrong++;
+      state.currentJudged = true;
+      saveState();
+    }
+
+    function advanceBlockIfFinished() {
+      markBlockCompletedIfNeeded(state.currentBlock);
+
+      if (state.currentBlock < BLOCKS.length - 1) {
+        state.currentBlock++;
+        state.newIndex = 0;
+        state.reviewMode = false;
+        state.currentReviewItem = null;
+        state.reviewQueue = [];
+      } else {
+        state.newIndex = BLOCKS[state.currentBlock].length;
+        state.reviewMode = false;
+        state.currentReviewItem = null;
+        state.reviewQueue = [];
       }
-      return null;
+      clearCardState();
+      saveState();
     }
 
-    function renderCurrentState() {
-      updateStats();
+    function advanceWhenNoCurrent() {
+      if (state.reviewQueue.length > 0) {
+        state.reviewMode = true;
+        state.currentReviewItem = state.reviewQueue[0];
+      } else {
+        advanceBlockIfFinished();
+      }
+      clearFeedback();
+      render();
+      scrollToQuestion();
+    }
+
+    function goNext() {
+      const current = getCurrentPhraseData();
+      clearFeedback();
 
       if (!current) {
-        el("spanish").textContent = "—";
-        el("english").textContent = "Pulsa “Ver respuesta” cuando ya la hayas pensado.";
-        el("okBtn").disabled = true;
-        el("wrongBtn").disabled = true;
-        el("revealBtn").disabled = false;
+        advanceWhenNoCurrent();
         return;
       }
 
-      el("spanish").textContent = current.es;
-      el("english").textContent = revealed ? current.en : "Pulsa “Ver respuesta” cuando ya la hayas pensado.";
-      el("okBtn").disabled = !revealed;
-      el("wrongBtn").disabled = !revealed;
-      el("revealBtn").disabled = false;
-    }
+      if (state.reviewMode) {
+        state.currentReviewItem = null;
 
-    function nextQuestion() {
-      const block = currentBlockData();
-
-      if (!block.length) {
-        current = null;
-        el("spanish").textContent = "No hay frases activas en este bloque.";
-        el("english").textContent = "Revisa el ID inicial o el tamaño del bloque.";
-        el("revealBtn").disabled = true;
-        el("okBtn").disabled = true;
-        el("wrongBtn").disabled = true;
-        updateStats();
-        saveProgress();
-        return;
-      }
-
-      let candidate = getPriorityCandidate(block);
-
-      if (!candidate) {
-        const pool = block.filter(x => !asked.has(x.id));
-
-        if (!pool.length) {
-          if (!canAdvance()) {
-            asked = new Set();
-            wrongQueue = [];
-
-            Object.keys(failMap)
-              .sort((a, b) => (failMap[b] || 0) - (failMap[a] || 0))
-              .forEach(id => enqueueError(Number(id)));
-
-            current = null;
-            el("spanish").textContent = "Repetimos el bloque porque aún no has llegado al porcentaje objetivo.";
-            el("english").textContent = "Las frases falladas saldrán antes y más veces. Pulsa Siguiente.";
-            el("revealBtn").disabled = true;
-            el("okBtn").disabled = true;
-            el("wrongBtn").disabled = true;
-            updateStats();
-            saveProgress();
-            return;
-          }
-
-          current = null;
-          el("spanish").textContent = "Bloque superado. Ya puedes pasar al siguiente bloque.";
-          el("english").textContent = "—";
-          el("revealBtn").disabled = true;
-          el("okBtn").disabled = true;
-          el("wrongBtn").disabled = true;
-          updateStats();
-          saveProgress();
-          return;
+        if (state.reviewQueue.length > 0) {
+          state.currentReviewItem = state.reviewQueue[0];
+        } else {
+          state.reviewMode = false;
+          state.currentReviewItem = null;
+          advanceBlockIfFinished();
         }
+      } else {
+        state.newIndex++;
+        const currentBlockLength = BLOCKS[state.currentBlock].length;
 
-        candidate = pool[Math.floor(Math.random() * pool.length)];
+        if (state.newIndex >= currentBlockLength) {
+          if (state.reviewQueue.length > 0) {
+            state.reviewMode = true;
+            state.currentReviewItem = state.reviewQueue[0];
+          } else {
+            advanceBlockIfFinished();
+          }
+        }
       }
 
-      current = candidate;
-      asked.add(current.id);
-      revealed = false;
-
-      el("spanish").textContent = current.es;
-      el("english").textContent = "Pulsa “Ver respuesta” cuando ya la hayas pensado.";
-      el("revealBtn").disabled = false;
-      el("okBtn").disabled = true;
-      el("wrongBtn").disabled = true;
-
-      updateStats();
-      saveProgress();
+      clearCardState();
+      saveState();
+      render();
+      scrollToQuestion();
     }
 
-    el("reloadBtn").addEventListener("click", async () => {
-      await loadRemoteCSV();
-    });
+    function showCompletionIfNeeded() {
+      return state.currentBlock === BLOCKS.length - 1
+        && state.newIndex >= BLOCKS[state.currentBlock].length
+        && state.reviewQueue.length === 0
+        && !state.reviewMode;
+    }
 
-    el("resetProgressBtn").addEventListener("click", () => {
-      clearProgress();
-      resetBlockStats();
-      current = null;
-      el("spanish").textContent = "—";
-      el("english").textContent = "Pulsa “Ver respuesta” cuando ya la hayas pensado.";
-      el("startId").value = 1;
-      blockStart = 1;
-      updateStats();
-    });
+    const blockStat = document.getElementById("blockStat");
+    const correctStat = document.getElementById("correctStat");
+    const wrongStat = document.getElementById("wrongStat");
+    const pendingStat = document.getElementById("pendingStat");
+    const progressText = document.getElementById("progressText");
+    const progressPercent = document.getElementById("progressPercent");
+    const progressBar = document.getElementById("progressBar");
+    const modeBadge = document.getElementById("modeBadge");
+    const questionNumber = document.getElementById("questionNumber");
+    const questionEs = document.getElementById("questionEs");
+    const answerBox = document.getElementById("answerBox");
+    const feedback = document.getElementById("feedback");
+    const questionCard = document.getElementById("questionCard");
+    const showAnswerBtn = document.getElementById("showAnswerBtn");
+    const correctBtn = document.getElementById("correctBtn");
+    const wrongBtn = document.getElementById("wrongBtn");
 
-    el("startBtn").addEventListener("click", () => {
-      if (!allData.length) {
-        alert("Primero espera a que se carguen las frases o pulsa Actualizar frases.");
+    function render() {
+      blockStat.textContent = `${Math.min(state.currentBlock + 1, BLOCKS.length)} / ${BLOCKS.length}`;
+      correctStat.textContent = state.correct;
+      wrongStat.textContent = state.wrong;
+      pendingStat.textContent = state.reviewQueue.length;
+
+      const total = getTotalPhrases();
+      const mastered = getMasteredCount();
+      const pct = total === 0 ? 0 : Math.round((mastered / total) * 100);
+      progressText.textContent = `${mastered} de ${total} frases consolidadas`;
+      progressPercent.textContent = `${pct}%`;
+      progressBar.style.width = `${pct}%`;
+
+      if (showCompletionIfNeeded()) {
+        modeBadge.textContent = "Curso completado";
+        modeBadge.className = "mode-badge mode-new";
+        questionNumber.textContent = "Enhorabuena";
+        questionEs.innerHTML = "Has completado todos los bloques 🎉";
+        answerBox.innerHTML = '<span class="answer-placeholder">Ya no quedan frases pendientes.</span>';
+        showAnswerBtn.disabled = true;
+        correctBtn.disabled = true;
+        wrongBtn.disabled = true;
         return;
       }
 
-      blockSize = Math.max(1, Number(el("blockSize").value || 10));
-      threshold = Math.min(100, Math.max(1, Number(el("threshold").value || 90)));
-      blockStart = Math.max(1, Number(el("startId").value || 1));
-
-      resetBlockStats();
-      nextQuestion();
-    });
-
-    el("revealBtn").addEventListener("click", () => {
-      if (!current) return;
-
-      revealed = true;
-      el("english").textContent = current.en;
-      el("okBtn").disabled = false;
-      el("wrongBtn").disabled = false;
-      saveProgress();
-    });
-
-    el("okBtn").addEventListener("click", () => {
-      if (!revealed || !current) return;
-
-      correctCount++;
-      delete failMap[current.id];
-      wrongQueue = wrongQueue.filter(id => id !== current.id);
-
-      nextQuestion();
-    });
-
-    el("wrongBtn").addEventListener("click", () => {
-      if (!revealed || !current) return;
-
-      wrongCount++;
-      failMap[current.id] = (failMap[current.id] || 0) + 1;
-      enqueueError(current.id);
-
-      nextQuestion();
-    });
-
-    el("nextBtn").addEventListener("click", () => {
-      nextQuestion();
-    });
-
-    el("nextBlockBtn").addEventListener("click", () => {
-      if (!canAdvance()) {
-        alert("Aún no alcanzas el objetivo del bloque.");
+      const current = getCurrentPhraseData();
+      if (!current) {
+        questionNumber.textContent = "Preparando siguiente frase...";
+        questionEs.textContent = "...";
+        answerBox.innerHTML = '<span class="answer-placeholder">Cargando...</span>';
         return;
       }
 
-      blockStart += blockSize;
-      el("startId").value = blockStart;
+      const { blockIndex, phraseIndex, phrase } = current;
 
-      resetBlockStats();
-      nextQuestion();
+      if (state.reviewMode) {
+        modeBadge.textContent = "Modo: repaso de errores";
+        modeBadge.className = "mode-badge mode-review";
+      } else {
+        modeBadge.textContent = "Modo: frases nuevas";
+        modeBadge.className = "mode-badge mode-new";
+      }
+
+      questionNumber.textContent = `Bloque ${blockIndex + 1} · Frase ${phraseIndex + 1} de ${BLOCKS[blockIndex].length}`;
+      questionEs.textContent = phrase.es;
+
+      if (state.answerVisible) {
+        answerBox.textContent = phrase.en;
+        correctBtn.disabled = state.currentJudged;
+        wrongBtn.disabled = state.currentJudged;
+      } else {
+        answerBox.innerHTML = '<span class="answer-placeholder">Pulsa en “Ver respuesta” cuando quieras comprobarla.</span>';
+        correctBtn.disabled = true;
+        wrongBtn.disabled = true;
+      }
+
+      showAnswerBtn.disabled = state.answerVisible;
+    }
+
+    function showFeedback(type, html) {
+      feedback.className = `feedback ${type}`;
+      feedback.innerHTML = html;
+    }
+
+    function clearFeedback() {
+      feedback.className = "feedback";
+      feedback.innerHTML = "";
+    }
+
+    function scrollToQuestion() {
+      questionCard.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+
+    function showAnswer() {
+      if (showCompletionIfNeeded()) return;
+      state.answerVisible = true;
+      saveState();
+      render();
+      showFeedback("info", "<strong>Respuesta mostrada</strong><div class='mini'>Ahora decide si la habías dicho bien o mal.</div>");
+    }
+
+    function markCorrect() {
+      const current = getCurrentPhraseData();
+      if (!current || !state.answerVisible || state.currentJudged) return;
+      afterCorrect(current.blockIndex, current.phraseIndex);
+      render();
+      showFeedback("ok", "<strong>Correcto ✅</strong><div class='mini'>La frase queda superada y sale del repaso si estaba pendiente.</div>");
+    }
+
+    function markWrong() {
+      const current = getCurrentPhraseData();
+      if (!current || !state.answerVisible || state.currentJudged) return;
+      afterWrong(current.blockIndex, current.phraseIndex);
+      render();
+      showFeedback("bad", "<strong>Incorrecto ❌</strong><div class='mini'>La frase se añade al repaso hasta que la marques como correcta.</div>");
+    }
+
+    function resetState() {
+      state = createInitialState();
+      saveState();
+      clearFeedback();
+      render();
+      scrollToQuestion();
+    }
+
+    document.getElementById("showAnswerBtn").addEventListener("click", showAnswer);
+    document.getElementById("correctBtn").addEventListener("click", markCorrect);
+    document.getElementById("wrongBtn").addEventListener("click", markWrong);
+    document.getElementById("nextBtnBottom").addEventListener("click", goNext);
+    document.getElementById("nextBtnTop").addEventListener("click", goNext);
+    document.getElementById("resetProgressBtn").addEventListener("click", () => {
+      if (confirm("¿Seguro que quieres reiniciar todo el progreso?")) resetState();
     });
 
-    loadRemoteCSV();
+    render();
   </script>
 </body>
 </html>
