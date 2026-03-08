@@ -1,42 +1,74 @@
-
 <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Entrenamiento de frases</title>
+
 <style>
-body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:12px;max-width:800px;margin:auto}
-button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+margin:0;
+padding:20px
+}
+
+.card{
+background:#1e293b;
+padding:20px;
+border-radius:12px;
+max-width:800px;
+margin:auto
+}
+
+button{
+padding:10px 14px;
+margin:6px;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer
+}
+
 .ok{background:#22c55e}
 .bad{background:#ef4444;color:white}
 .next{background:#38bdf8}
-.answer{margin-top:15px;font-size:18px}
+.show{background:#e5e7eb;color:black}
 
 .es{
 font-size:18px;
 font-weight:bold;
 line-height:1.45;
-margin-top:18px;
+margin-top:18px
 }
+
+.answer{
+margin-top:12px;
+font-size:18px;
+color:#cbd5f5
+}
+
 </style>
 </head>
 
 <body>
+
 <div class="card">
+
 <h2>Entrenamiento de frases</h2>
 
 <div id="es" class="es">Cargando...</div>
 
 <div id="answer" class="answer"></div>
 
-<button onclick="showAnswer()">Ver respuesta</button>
+<button class="show" onclick="showAnswer()">Ver respuesta</button>
 <button class="ok" onclick="markCorrect()">Correcto</button>
 <button class="bad" onclick="markWrong()">Incorrecto</button>
 <button class="next" onclick="next()">Siguiente</button>
 
 </div>
+
 
 <script>
 
@@ -55,13 +87,21 @@ let t=await r.text()
 let rows=t.split("\n").slice(1)
 
 rows.forEach(r=>{
+
 let c=r.split(",")
-if(c[2]&&c[3]){
+
+let es=c[2]
+let en=c[3]
+
+if(es && en){
+
 frases.push({
-es:c[2],
-en:c[3]
+es:es,
+en:en
 })
+
 }
+
 })
 
 next()
@@ -69,36 +109,57 @@ next()
 }
 
 function randomError(){
-return errores[Math.floor(Math.random()*errores.length)]
+
+let i=Math.floor(Math.random()*errores.length)
+return errores[i]
+
 }
 
 function next(){
 
+document.getElementById("answer").innerText=""
+
 if(errores.length>0){
+
 actual=randomError()
+
 }else{
-actual=frases[Math.floor(Math.random()*frases.length)]
+
+let i=Math.floor(Math.random()*frases.length)
+actual=frases[i]
+
 }
 
 document.getElementById("es").innerText=actual.es
-document.getElementById("answer").innerText=""
 
 }
 
 function showAnswer(){
+
 document.getElementById("answer").innerText=actual.en
+
 }
 
 function markCorrect(){
+
 errores=errores.filter(e=>e!==actual)
+next()
+
 }
 
 function markWrong(){
-if(!errores.includes(actual))errores.push(actual)
+
+if(!errores.includes(actual)){
+errores.push(actual)
+}
+
+next()
+
 }
 
 cargar()
 
 </script>
+
 </body>
 </html>
