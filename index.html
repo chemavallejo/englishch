@@ -92,7 +92,7 @@
         <button class="btn-secondary full" id="applyFilterBtn">Aplicar filtro</button>
         <button class="btn-secondary full" id="reloadSheetBtn">Recargar Sheet</button>
       </div>
-      <div class="hint">La columna B se usa como español, la D como traducción correcta y la E como bloque/categoría opcional.</div>
+      <div class="hint">En esta versión la app lee el español desde la columna C, el inglés desde la D y el bloque desde la E.</div>
     </div>
 
     <div class="panel">
@@ -128,7 +128,6 @@
   <script>
     const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
     const SHEET_GID = "0";
-    const STORAGE_KEY = "entrenamiento_frases_sheet_v6_" + SHEET_ID;
     const FILTER_KEY = "entrenamiento_frases_filters_" + SHEET_ID;
 
     let allRows = [];
@@ -142,9 +141,7 @@
       };
     }
 
-    function saveState(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
     function saveFilters(filters){ localStorage.setItem(FILTER_KEY, JSON.stringify(filters)); }
-
     function loadFilters(){
       try {
         const raw = localStorage.getItem(FILTER_KEY);
@@ -200,12 +197,11 @@
         const rowNumber = i + 1;
         const cols = rows[i];
         const id = (cols[0] || "").trim();
-        const colB = (cols[1] || "").trim();
         const colC = (cols[2] || "").trim();
         const colD = (cols[3] || "").trim();
         const colE = (cols[4] || "").trim();
 
-        const es = colB || colC;
+        const es = colC;
         const en = colD;
         const bloque = colE;
 
@@ -226,11 +222,7 @@
     }
 
     function escapeHtml(text) {
-      return String(text)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;");
+      return String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     }
 
     function updateBlockSelect() {
@@ -252,7 +244,6 @@
       const filtered = allRows.filter(r => r.rowNumber >= startRow && (blockValue === "__ALL__" || r.bloque === blockValue));
       BLOCKS = [filtered.map(r => ({ es: r.es, en: r.en, rowNumber: r.rowNumber, bloque: r.bloque }))];
       state = createInitialState();
-      saveState();
       clearFeedback();
       render();
     }
@@ -281,14 +272,12 @@
     function getCurrentPhraseData() {
       const block = BLOCKS[state.currentBlock];
       if (!block) return null;
-
       if (state.reviewMode) {
         if (!state.currentReviewItem) return null;
         const item = state.currentReviewItem;
         if (!BLOCKS[item.blockIndex] || !BLOCKS[item.blockIndex][item.phraseIndex]) return null;
         return { blockIndex: item.blockIndex, phraseIndex: item.phraseIndex, phrase: BLOCKS[item.blockIndex][item.phraseIndex] };
       }
-
       if (state.newIndex >= block.length) return null;
       return { blockIndex: state.currentBlock, phraseIndex: state.newIndex, phrase: block[state.newIndex] };
     }
@@ -302,23 +291,19 @@
       state.reviewQueue = state.reviewQueue.filter(item => !(item.blockIndex === blockIndex && item.phraseIndex === phraseIndex));
     }
 
-    function clearCardState(){ state.answerVisible = false; state.currentJudged = false; saveState(); }
-
+    function clearCardState(){ state.answerVisible = false; state.currentJudged = false; }
     function afterCorrect(blockIndex, phraseIndex){
       state.masteredMap[phraseId(blockIndex, phraseIndex)] = true;
       removeFromReviewQueue(blockIndex, phraseIndex);
       state.correct++;
       state.currentJudged = true;
       markBlockCompletedIfNeeded(blockIndex);
-      saveState();
     }
-
     function afterWrong(blockIndex, phraseIndex){
       delete state.masteredMap[phraseId(blockIndex, phraseIndex)];
       addToReviewQueue(blockIndex, phraseIndex);
       state.wrong++;
       state.currentJudged = true;
-      saveState();
     }
 
     function enterReviewModeIfNeeded(){
@@ -336,7 +321,6 @@
       if (!blockIsFinished(state.currentBlock)) {
         enterReviewModeIfNeeded();
         clearCardState();
-        saveState();
         return;
       }
       if (state.currentBlock < BLOCKS.length - 1) {
@@ -349,7 +333,6 @@
       state.currentReviewItem = null;
       state.reviewQueue = [];
       clearCardState();
-      saveState();
     }
 
     function advanceWhenNoCurrent(){
@@ -398,7 +381,6 @@
       }
 
       clearCardState();
-      saveState();
       render();
       scrollToQuestion();
     }
@@ -514,7 +496,7 @@
 
     function showAnswer(){
       if (showCompletionIfNeeded()) return;
-      state.answerVisible = true; saveState(); render();
+      state.answerVisible = true; render();
       showFeedback("info", "<strong>Respuesta mostrada</strong><div class='mini'>Ahora decide si la habías dicho bien o mal.</div>");
     }
 
@@ -533,7 +515,7 @@
     }
 
     function resetState(){
-      state = createInitialState(); saveState(); clearFeedback(); render(); scrollToQuestion();
+      state = createInitialState(); clearFeedback(); render(); scrollToQuestion();
     }
 
     async function initializeApp(){
