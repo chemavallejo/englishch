@@ -7,19 +7,88 @@
 <title>Entrenamiento de frases</title>
 
 <style>
-body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:12px;max-width:900px;margin:auto}
+body{
+font-family:Arial;
+background:#0f172a;
+color:white;
+margin:0;
+padding:20px
+}
+
+.card{
+background:#1e293b;
+padding:20px;
+border-radius:12px;
+max-width:900px;
+margin:auto
+}
+
 h1{margin-top:0}
-.es{font-size:18px;font-weight:bold;line-height:1.45;margin-top:10px}
-.answer{margin-top:10px;font-size:18px;color:#cbd5f5}
-button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
+
+.topbar{
+margin-bottom:10px;
+}
+
+select{
+padding:8px;
+border-radius:6px;
+border:none
+}
+
+.es{
+font-size:18px;
+font-weight:bold;
+line-height:1.45;
+margin-top:10px
+}
+
+.answer{
+margin-top:10px;
+font-size:18px;
+color:#cbd5f5
+}
+
+button{
+padding:10px 14px;
+margin:6px;
+border:none;
+border-radius:8px;
+font-weight:bold;
+cursor:pointer
+}
+
 .show{background:#e5e7eb;color:black}
 .ok{background:#22c55e}
 .bad{background:#ef4444;color:white}
 .next{background:#38bdf8}
-.stats{margin-top:15px;font-size:14px;color:#94a3b8}
-.topbar{display:flex;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-select{padding:8px;border-radius:6px;border:none}
+
+.stats{
+margin-top:15px;
+font-size:14px;
+color:#94a3b8
+}
+
+.progressContainer{
+margin-top:12px;
+background:#0b1220;
+border-radius:8px;
+overflow:hidden;
+height:12px
+}
+
+.progressBar{
+height:12px;
+width:0%;
+background:#38bdf8;
+transition:width .3s
+}
+
+.message{
+margin-top:10px;
+font-size:14px;
+color:#facc15
+}
+
 </style>
 </head>
 
@@ -34,7 +103,13 @@ select{padding:8px;border-radius:6px;border:none}
 <select id="blockSelect"></select>
 </div>
 
-<div id="es" class="es">Cargando frases...</div>
+<div class="progressContainer">
+<div id="progressBar" class="progressBar"></div>
+</div>
+
+<div id="message" class="message"></div>
+
+<div id="es" class="es">Cargando...</div>
 <div id="answer" class="answer"></div>
 
 <div>
@@ -64,6 +139,7 @@ let modoRepaso=false
 let actual=null
 let ok=0
 let bad=0
+let ultima=null
 
 async function cargar(){
 
@@ -104,13 +180,13 @@ let blocks=[...new Set(frases.map(f=>f.bloque))]
 
 let select=document.getElementById("blockSelect")
 
-select.innerHTML=""
-
 blocks.forEach(b=>{
+
 let opt=document.createElement("option")
 opt.value=b
 opt.textContent=b
 select.appendChild(opt)
+
 })
 
 select.addEventListener("change",startBlock)
@@ -129,7 +205,24 @@ indice=0
 errores=[]
 modoRepaso=false
 
+document.getElementById("message").innerText=""
+
 next()
+
+}
+
+function actualizarBarra(){
+
+let total=bloqueActual.length
+let hecho=indice
+
+if(modoRepaso){
+hecho=total-errores.length
+}
+
+let pct=(hecho/total)*100
+
+document.getElementById("progressBar").style.width=pct+"%"
 
 }
 
@@ -142,6 +235,8 @@ if(!modoRepaso){
 if(indice>=bloqueActual.length){
 
 modoRepaso=true
+
+document.getElementById("message").innerText="Entrando en repaso de errores"
 
 if(errores.length===0){
 
@@ -163,18 +258,24 @@ if(modoRepaso){
 
 if(errores.length===0){
 
-document.getElementById("es").innerText="Repaso completado 🎉"
+document.getElementById("message").innerText="Repaso completado 🎉"
+document.getElementById("es").innerText="Bloque completado"
 return
 
 }
 
+do{
 let i=Math.floor(Math.random()*errores.length)
 actual=errores[i]
+}while(actual===ultima && errores.length>1)
 
 }
 
+ultima=actual
+
 document.getElementById("es").innerText=actual.es
 
+actualizarBarra()
 updateStats()
 
 }
