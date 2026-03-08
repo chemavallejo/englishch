@@ -22,15 +22,13 @@ max-width:900px;
 margin:auto
 }
 
-h1{
-margin-top:0
-}
+h1{margin-top:0}
 
 .es{
 font-size:18px;
 font-weight:bold;
 line-height:1.45;
-margin-top:15px
+margin-top:10px
 }
 
 .answer{
@@ -59,6 +57,19 @@ font-size:14px;
 color:#94a3b8
 }
 
+.topbar{
+display:flex;
+gap:10px;
+margin-bottom:10px;
+flex-wrap:wrap
+}
+
+select{
+padding:8px;
+border-radius:6px;
+border:none
+}
+
 </style>
 </head>
 
@@ -68,8 +79,12 @@ color:#94a3b8
 
 <h1>Entrenamiento de frases</h1>
 
-<div id="es" class="es">Cargando frases...</div>
+<div class="topbar">
+<label>Bloque:</label>
+<select id="blockSelect"></select>
+</div>
 
+<div id="es" class="es">Cargando frases...</div>
 <div id="answer" class="answer"></div>
 
 <div>
@@ -100,7 +115,6 @@ let bad=0
 async function cargar(){
 
 let url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`
-
 let r=await fetch(url)
 let t=await r.text()
 
@@ -110,12 +124,15 @@ rows.forEach(r=>{
 
 let c=r.split(",")
 
+let bloque=c[1]
 let es=c[2]
 let en=c[3]
+let activa=c[4]
 
-if(es && en){
+if(activa && activa.toLowerCase().includes("x")){
 
 frases.push({
+bloque:bloque.trim(),
 es:es.trim(),
 en:en.trim()
 })
@@ -124,7 +141,39 @@ en:en.trim()
 
 })
 
+initBlocks()
 next()
+
+}
+
+function initBlocks(){
+
+let blocks=[...new Set(frases.map(f=>f.bloque))]
+
+let select=document.getElementById("blockSelect")
+
+select.innerHTML='<option value="all">Todos</option>'
+
+blocks.forEach(b=>{
+
+let opt=document.createElement("option")
+opt.value=b
+opt.textContent=b
+select.appendChild(opt)
+
+})
+
+select.addEventListener("change",next)
+
+}
+
+function getFiltered(){
+
+let block=document.getElementById("blockSelect").value
+
+if(block==="all") return frases
+
+return frases.filter(f=>f.bloque===block)
 
 }
 
@@ -139,14 +188,16 @@ function next(){
 
 document.getElementById("answer").innerText=""
 
+let list=getFiltered()
+
 if(errores.length>0){
 
 actual=randomError()
 
 }else{
 
-let i=Math.floor(Math.random()*frases.length)
-actual=frases[i]
+let i=Math.floor(Math.random()*list.length)
+actual=list[i]
 
 }
 
