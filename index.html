@@ -25,7 +25,7 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 .mainText{font-size:20px;font-weight:bold;line-height:1.5;margin-top:14px;white-space:pre-line}
 .answer{margin-top:12px;font-size:18px;color:#cbd5f5;white-space:pre-line}
 .speechBox{margin-top:14px;padding:12px;border-radius:10px;background:#0b1220}
-.score{margin-top:8px;font-size:16px;font-weight:bold}
+.score{margin-top:8px;font-size:16px;font-weight:bold;white-space:pre-line}
 .controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
 .controlGroup{display:flex;flex-direction:column}
 label{font-size:14px;color:#cbd5f5}
@@ -172,12 +172,7 @@ function speakText(text, lang = "en-US", rate = 0.9){
 
 function speakCurrent(){
   if(!actual) return;
-
-  if(trainingMode === "es_en"){
-    speakText(actual.en, "en-US", 0.9);
-  } else {
-    speakText(actual.en, "en-US", 0.9);
-  }
+  speakText(actual.en, "en-US", 0.9);
 }
 
 function parseCSVLine(line){
@@ -483,8 +478,45 @@ function buildStoryItems(){
     source = frases.filter(f => f.bloque === block);
   }
 
-  source = shuffle(source);
-  return source.slice(0, Math.min(6, source.length));
+  source = shuffle(source).slice(0, Math.min(6, source.length));
+
+  const connectors = [
+    "First, ",
+    "Then, ",
+    "After that, ",
+    "Later, ",
+    "Next, ",
+    "Finally, "
+  ];
+
+  return source.map((item, index) => {
+    let enText = item.en ? item.en.trim() : "";
+    let esText = item.es ? item.es.trim() : "";
+
+    if(!enText){
+      return item;
+    }
+
+    enText = enText.replace(/^([A-Z])/, c => c.toLowerCase());
+
+    if(index === 0){
+      enText = connectors[0] + enText;
+    } else if(index === source.length - 1){
+      enText = connectors[connectors.length - 1] + enText;
+    } else {
+      const middleConnectors = connectors.slice(1, connectors.length - 1);
+      const connector = middleConnectors[(index - 1) % middleConnectors.length];
+      enText = connector + enText;
+    }
+
+    enText = enText.replace(/^([a-z])/, c => c.toUpperCase());
+
+    return {
+      ...item,
+      en_story: enText,
+      es_story: esText
+    };
+  });
 }
 
 function playStory(){
@@ -505,23 +537,26 @@ function playStory(){
   let delay = 0;
 
   storyItems.forEach((item, idx) => {
-    const utter = new SpeechSynthesisUtterance(item.en);
+    const textToRead = item.en_story || item.en;
+
+    const utter = new SpeechSynthesisUtterance(textToRead);
     utter.lang = selectedVoice ? selectedVoice.lang : "en-US";
-    utter.rate = 0.9;
+    utter.rate = 0.92;
     utter.pitch = 1;
     utter.volume = 1;
+
     if(selectedVoice) utter.voice = selectedVoice;
 
     setTimeout(() => {
       window.speechSynthesis.speak(utter);
     }, delay);
 
-    delay += Math.max(1800, item.en.length * 70);
+    delay += Math.max(2200, textToRead.length * 85);
 
     if(idx === storyItems.length - 1){
       setTimeout(() => {
         messageEl.innerText = "✅ Historia reproducida. Pulsa “Ver historia”.";
-      }, delay + 200);
+      }, delay + 250);
     }
   });
 }
@@ -532,8 +567,8 @@ function showStory(){
     return;
   }
 
-  const enText = storyItems.map(x => x.en).join("\n");
-  const esText = storyItems.map(x => x.es).join("\n");
+  const enText = storyItems.map(x => x.en_story || x.en).join("\n");
+  const esText = storyItems.map(x => x.es_story || x.es).join("\n");
 
   answerEl.innerText = `EN:\n${enText}\n\nES:\n${esText}`;
 }
