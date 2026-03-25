@@ -7,9 +7,9 @@
 
 <style>
 body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:12px;max-width:980px;margin:auto}
+.card{background:#1e293b;padding:20px;border-radius:12px;max-width:1100px;margin:auto}
 h1{margin-top:0}
-select{padding:8px;border-radius:6px;border:none;margin-top:6px}
+select{padding:8px;border-radius:6px;border:none;margin-top:6px;min-width:150px}
 button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
 .show{background:#e5e7eb;color:black}
 .ok{background:#22c55e;color:white}
@@ -58,6 +58,22 @@ label{font-size:14px;color:#cbd5f5;margin-bottom:4px}
       <option value="en_es">Listening Inglés → Español</option>
     </select>
   </div>
+
+  <div class="controlGroup">
+    <label>Velocidad:</label>
+    <select id="speedSelect">
+      <option value="0.6">Muy lento</option>
+      <option value="0.8">Lento</option>
+      <option value="1" selected>Normal</option>
+      <option value="1.15">Rápido</option>
+      <option value="1.3">Muy rápido</option>
+    </select>
+  </div>
+
+  <div class="controlGroup">
+    <label>Voz:</label>
+    <select id="voiceSelect"></select>
+  </div>
 </div>
 
 <div class="small" id="modeHint"></div>
@@ -96,10 +112,11 @@ label{font-size:14px;color:#cbd5f5;margin-bottom:4px}
 <script>
 const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
 
-// Claves separadas para no mezclar frases y textos
 const STORAGE_KEYS = {
   frases: "errores_acumulados_frases",
-  textos: "errores_acumulados_textos"
+  textos: "errores_acumulados_textos",
+  voice: "selected_voice_index",
+  speed: "selected_speed"
 };
 
 const SHEET_NAMES = {
@@ -110,8 +127,8 @@ const SHEET_NAMES = {
 let frasesData = [];
 let textosData = [];
 
-let currentSource = "frases";   // frases | textos
-let trainingMode = "es_en";     // es_en | en_es
+let currentSource = "frases";
+let trainingMode = "es_en";
 
 let bloqueActual = [];
 let erroresBloque = [];
@@ -125,13 +142,15 @@ let ok = 0;
 let bad = 0;
 let ultima = null;
 
-let selectedVoice = null;
+let englishVoices = [];
 let recognition = null;
 let recognizing = false;
 
 const sourceSelectEl = document.getElementById("sourceSelect");
 const blockSelectEl = document.getElementById("blockSelect");
 const modeSelectEl = document.getElementById("modeSelect");
+const speedSelectEl = document.getElementById("speedSelect");
+const voiceSelectEl = document.getElementById("voiceSelect");
 const modeHintEl = document.getElementById("modeHint");
 const progressBarEl = document.getElementById("progressBar");
 const messageEl = document.getElementById("message");
@@ -162,6 +181,20 @@ function saveGlobal(){
   localStorage.setItem(getStorageKey(), JSON.stringify(erroresGlobal));
 }
 
+function loadVoicePrefs(){
+  const savedSpeed = localStorage.getItem(STORAGE_KEYS.speed);
+  if(savedSpeed) speedSelectEl.value = savedSpeed;
+}
+
+function saveVoicePrefs(){
+  localStorage.setItem(STORAGE_KEYS.speed, speedSelectEl.value);
+  localStorage.setItem(STORAGE_KEYS.voice, voiceSelectEl.value);
+}
+
+function getSelectedSpeed(){
+  return parseFloat(speedSelectEl.value || "1");
+}
+
 function shuffle(a){
   const arr = [...a];
   for(let i = arr.length - 1; i > 0; i--){
@@ -171,13 +204,44 @@ function shuffle(a){
   return arr;
 }
 
-function initVoices(){
-  const voices = window.speechSynthesis.getVoices();
-  selectedVoice =
-    voices.find(v => v.lang === "en-US") ||
-    voices.find(v => v.lang === "en-GB") ||
-    voices.find(v => v.lang && v.lang.startsWith("en")) ||
-    null;
+function loadVoices(){
+  const voices = speechSynthesis.getVoices();
+
+  englishVoices = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
+
+  voiceSelectEl.innerHTML = "";
+
+  if(englishVoices.length === 0){
+    const o = document.createElement("option");
+    o.value = "";
+    o.textContent = "Voz inglesa no disponible";
+    voiceSelectEl.appendChild(o);
+    return;
+  }
+
+  englishVoices.forEach((v, i) => {
+    const o = document.createElement("option");
+    o.value = i;
+    o.textContent = `${v.name} (${v.lang})`;
+    voiceSelectEl.appendChild(o);
+  });
+
+  const savedVoice = localStorage.getItem(STORAGE_KEYS.voice);
+  if(savedVoice !== null && englishVoices[savedVoice]){
+    voiceSelectEl.value = savedVoice;
+  } else {
+    let preferredIndex =
+      englishVoices.findIndex(v => v.lang === "en-GB") >= 0 ? englishVoices.findIndex(v => v.lang === "en-GB") :
+      englishVoices.findIndex(v => v.lang === "en-US") >= 0 ? englishVoices.findIndex(v => v.lang === "en-US") :
+      0;
+    voiceSelectEl.value = preferredIndex;
+  }
+}
+
+function getSelectedVoice(){
+  const i = parseInt(voiceSelectEl.value, 10);
+  if(Number.isNaN(i)) return null;
+  return englishVoices[i] || null;
 }
 
 function stopSpeaking(){
@@ -186,20 +250,21 @@ function stopSpeaking(){
   }
 }
 
-function speakText(text, lang = "en-US", rate = 0.9){
+function speakText(text, lang = "en-US"){
   if(!text) return;
 
   stopSpeaking();
 
   const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = lang;
-  utter.rate = rate;
+  const selectedVoice = getSelectedVoice();
+
+  utter.lang = selectedVoice ? selectedVoice.lang : lang;
+  utter.rate = getSelectedSpeed();
   utter.pitch = 1;
   utter.volume = 1;
 
-  if(lang.startsWith("en") && selectedVoice){
+  if(selectedVoice){
     utter.voice = selectedVoice;
-    utter.lang = selectedVoice.lang;
   }
 
   window.speechSynthesis.speak(utter);
@@ -209,7 +274,7 @@ function speakCurrent(){
   if(!actual) return;
 
   const text = currentSource === "frases" ? actual.en : actual.ingles;
-  speakText(text, "en-US", 0.9);
+  speakText(text, "en-US");
 }
 
 function parseCSVLine(line){
@@ -344,7 +409,6 @@ function initRecognition(){
 function startRecognition(){
   if(!actual) return;
 
-  // Speaking solo en FRASES + Español → Inglés
   if(currentSource !== "frases" || trainingMode !== "es_en"){
     speechScoreEl.innerText = "🎤 El modo hablar solo se usa en FRASES y en Español → Inglés.";
     return;
@@ -591,12 +655,12 @@ async function loadSheetData(sheetName){
 
 async function cargar(){
   try{
-    // FRASES
+    loadVoicePrefs();
+
     const frasesRows = await loadSheetData(SHEET_NAMES.frases);
     frasesData = [];
 
     frasesRows.forEach(cols => {
-      // A ID, B OBS, C ESPAÑOL, D TRADUCCIÓN CORRECTA, E ACTIVA
       const bloque = cols[1]?.trim();
       const es = cols[2]?.trim();
       const en = cols[3]?.trim();
@@ -607,12 +671,10 @@ async function cargar(){
       }
     });
 
-    // TEXTOS
     const textosRows = await loadSheetData(SHEET_NAMES.textos);
     textosData = [];
 
     textosRows.forEach(cols => {
-      // A capitulo, B id, C inglés, D español, E activa
       const capitulo = cols[0]?.trim();
       const id = cols[1]?.trim();
       const ingles = cols[2]?.trim();
@@ -638,21 +700,18 @@ async function cargar(){
   }
 }
 
-// Eventos
 sourceSelectEl.onchange = onSourceChange;
 modeSelectEl.onchange = onModeChange;
 blockSelectEl.onchange = startBlock;
+speedSelectEl.onchange = saveVoicePrefs;
+voiceSelectEl.onchange = saveVoicePrefs;
 
-// Voz
 if("speechSynthesis" in window){
-  initVoices();
-  window.speechSynthesis.onvoiceschanged = initVoices;
+  loadVoices();
+  window.speechSynthesis.onvoiceschanged = loadVoices;
 }
 
-// Reconocimiento
 initRecognition();
-
-// Arranque
 cargar();
 </script>
 
