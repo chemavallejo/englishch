@@ -17,10 +17,15 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 .ok{background:#22c55e}
 .bad{background:#ef4444;color:white}
 .listen{background:#3b82f6;color:white}
+.speak{background:#a855f7;color:white}
 .stats{margin-top:15px;font-size:14px;color:#94a3b8}
 .progressContainer{margin-top:12px;background:#0b1220;border-radius:8px;overflow:hidden;height:12px}
 .progressBar{height:12px;width:0%;background:#38bdf8;transition:width .3s}
 .message{margin-top:10px;font-size:14px;color:#facc15}
+.speechBox{margin-top:14px;padding:12px;border-radius:10px;background:#0b1220}
+.speechTitle{font-size:14px;color:#94a3b8;margin-bottom:6px}
+.speechText{font-size:16px;color:#e2e8f0;min-height:22px}
+.score{margin-top:8px;font-size:16px;font-weight:bold}
 </style>
 </head>
 
@@ -47,8 +52,15 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 <div>
 <button class="show" onclick="showAnswer()">Ver respuesta</button>
 <button class="listen" onclick="speakEnglish()">🔊 Escuchar</button>
+<button class="speak" onclick="startRecognition()">🎤 Hablar</button>
 <button class="ok" onclick="markCorrect()">Correcto</button>
 <button class="bad" onclick="markWrong()">Incorrecto</button>
+</div>
+
+<div class="speechBox">
+  <div class="speechTitle">Lo que la app ha entendido:</div>
+  <div id="speechResult" class="speechText">—</div>
+  <div id="speechScore" class="score"></div>
 </div>
 
 <div class="stats">
@@ -77,6 +89,8 @@ let ok = 0;
 let bad = 0;
 let ultima = null;
 let selectedVoice = null;
+let recognition = null;
+let recognizing = false;
 
 function loadGlobal(){
   const d = localStorage.getItem(STORAGE_KEY);
@@ -154,6 +168,127 @@ function parseCSVLine(line){
   return result.map(v => v.trim());
 }
 
+function normalizeText(text){
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.,!?;:()"']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a, b){
+  const matrix = [];
+
+  for(let i = 0; i <= b.length; i++){
+    matrix[i] = [i];
+  }
+  for(let j = 0; j <= a.length; j++){
+    matrix[0][j] = j;
+  }
+
+  for(let i = 1; i <= b.length; i++){
+    for(let j = 1; j <= a.length; j++){
+      if(b.charAt(i - 1) === a.charAt(j - 1)){
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+function similarityScore(a, b){
+  const aa = normalizeText(a);
+  const bb = normalizeText(b);
+
+  if(!aa && !bb) return 100;
+  if(!aa || !bb) return 0;
+
+  if(aa === bb) return 100;
+
+  const dist = levenshtein(aa, bb);
+  const maxLen = Math.max(aa.length, bb.length);
+  return Math.round((1 - dist / maxLen) * 100);
+}
+
+function evaluateSpeech(recognized, expected){
+  const score = similarityScore(recognized, expected);
+
+  if(score >= 85){
+    return { label: "✅ Muy bien", score };
+  }else if(score >= 60){
+    return { label: "🟡 Casi", score };
+  }else{
+    return { label: "🔴 Inténtalo otra vez", score };
+  }
+}
+
+function initRecognition(){
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if(!SpeechRecognition) return;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    recognizing = true;
+    document.getElementById("speechResult").innerText = "Escuchando...";
+    document.getElementById("speechScore").innerText = "";
+  };
+
+  recognition.onresult = (event) => {
+    const recognized = event.results[0][0].transcript;
+    document.getElementById("speechResult").innerText = recognized;
+
+    if(actual && actual.en){
+      const result = evaluateSpeech(recognized, actual.en);
+      document.getElementById("speechScore").innerText = `${result.label} (${result.score}%)`;
+    }
+  };
+
+  recognition.onerror = (event) => {
+    let msg = "Error al reconocer la voz";
+    if(event.error === "not-allowed") msg = "No has dado permiso al micrófono";
+    if(event.error === "no-speech") msg = "No se ha detectado voz";
+    if(event.error === "audio-capture") msg = "No se ha detectado micrófono";
+    document.getElementById("speechResult").innerText = msg;
+    document.getElementById("speechScore").innerText = "";
+  };
+
+  recognition.onend = () => {
+    recognizing = false;
+  };
+}
+
+function startRecognition(){
+  if(!actual) return;
+
+  if(!recognition){
+    document.getElementById("speechResult").innerText = "Este navegador no soporta reconocimiento de voz";
+    document.getElementById("speechScore").innerText = "";
+    return;
+  }
+
+  if(recognizing){
+    recognition.stop();
+    return;
+  }
+
+  stopSpeaking();
+  recognition.start();
+}
+
 async function cargar(){
   try{
     loadGlobal();
@@ -216,8 +351,14 @@ function initBlocks(){
   startBlock();
 }
 
+function clearSpeechBox(){
+  document.getElementById("speechResult").innerText = "—";
+  document.getElementById("speechScore").innerText = "";
+}
+
 function startBlock(){
   stopSpeaking();
+  clearSpeechBox();
   document.getElementById("message").innerText = "";
 
   const block = document.getElementById("blockSelect").value;
@@ -252,6 +393,7 @@ function updateBar(){
 
 function next(){
   stopSpeaking();
+  clearSpeechBox();
   document.getElementById("answer").innerText = "";
 
   if(!modoRepaso){
@@ -344,6 +486,7 @@ if("speechSynthesis" in window){
   window.speechSynthesis.onvoiceschanged = initVoices;
 }
 
+initRecognition();
 cargar();
 </script>
 
