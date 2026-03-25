@@ -9,7 +9,7 @@
 body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
 .card{background:#1e293b;padding:20px;border-radius:12px;max-width:900px;margin:auto}
 h1{margin-top:0}
-select{padding:8px;border-radius:6px;border:none}
+select{padding:8px;border-radius:6px;border:none;margin-right:8px;margin-top:6px}
 .es{font-size:18px;font-weight:bold;line-height:1.45;margin-top:10px}
 .answer{margin-top:10px;font-size:18px;color:#cbd5f5}
 button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
@@ -26,6 +26,9 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 .speechTitle{font-size:14px;color:#94a3b8;margin-bottom:6px}
 .speechText{font-size:16px;color:#e2e8f0;min-height:22px}
 .score{margin-top:8px;font-size:16px;font-weight:bold}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
+.controlGroup{display:flex;flex-direction:column}
+label{font-size:14px;color:#cbd5f5}
 </style>
 </head>
 
@@ -35,8 +38,20 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 
 <h1>Entrenamiento de frases</h1>
 
-<label>Bloque:</label>
-<select id="blockSelect"></select>
+<div class="controls">
+  <div class="controlGroup">
+    <label>Bloque:</label>
+    <select id="blockSelect"></select>
+  </div>
+
+  <div class="controlGroup">
+    <label>Modo:</label>
+    <select id="modeSelect">
+      <option value="es_en">Español → Inglés</option>
+      <option value="en_es">Inglés → Español</option>
+    </select>
+  </div>
+</div>
 
 <div class="progressContainer">
 <div id="progressBar" class="progressBar"></div>
@@ -51,7 +66,7 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 
 <div>
 <button class="show" onclick="showAnswer()">Ver respuesta</button>
-<button class="listen" onclick="speakEnglish()">🔊 Escuchar</button>
+<button class="listen" onclick="speakCurrent()">🔊 Escuchar</button>
 <button class="speak" onclick="startRecognition()">🎤 Hablar</button>
 <button class="ok" onclick="markCorrect()">Correcto</button>
 <button class="bad" onclick="markWrong()">Incorrecto</button>
@@ -91,6 +106,7 @@ let ultima = null;
 let selectedVoice = null;
 let recognition = null;
 let recognizing = false;
+let trainingMode = "es_en";
 
 function loadGlobal(){
   const d = localStorage.getItem(STORAGE_KEY);
@@ -124,20 +140,33 @@ function stopSpeaking(){
   }
 }
 
-function speakEnglish(){
-  if(!actual || !actual.en) return;
+function speakText(text, lang = "en-US"){
+  if(!text) return;
 
   stopSpeaking();
 
-  const utter = new SpeechSynthesisUtterance(actual.en);
-  utter.lang = selectedVoice ? selectedVoice.lang : "en-US";
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = lang;
   utter.rate = 0.9;
   utter.pitch = 1;
   utter.volume = 1;
 
-  if(selectedVoice) utter.voice = selectedVoice;
+  if(lang.startsWith("en") && selectedVoice){
+    utter.voice = selectedVoice;
+    utter.lang = selectedVoice.lang;
+  }
 
   window.speechSynthesis.speak(utter);
+}
+
+function speakCurrent(){
+  if(!actual) return;
+
+  if(trainingMode === "es_en"){
+    speakText(actual.en, "en-US");
+  } else {
+    speakText(actual.en, "en-US");
+  }
 }
 
 function parseCSVLine(line){
@@ -211,7 +240,6 @@ function similarityScore(a, b){
 
   if(!aa && !bb) return 100;
   if(!aa || !bb) return 0;
-
   if(aa === bb) return 100;
 
   const dist = levenshtein(aa, bb);
@@ -233,7 +261,6 @@ function evaluateSpeech(recognized, expected){
 
 function initRecognition(){
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-
   if(!SpeechRecognition) return;
 
   recognition = new SpeechRecognition();
@@ -273,6 +300,12 @@ function initRecognition(){
 
 function startRecognition(){
   if(!actual) return;
+
+  if(trainingMode !== "es_en"){
+    document.getElementById("speechResult").innerText = "🎤 El modo hablar puntúa tu inglés. Úsalo en Español → Inglés.";
+    document.getElementById("speechScore").innerText = "";
+    return;
+  }
 
   if(!recognition){
     document.getElementById("speechResult").innerText = "Este navegador no soporta reconocimiento de voz";
@@ -347,7 +380,13 @@ function initBlocks(){
   sel.appendChild(o);
 
   sel.onchange = startBlock;
+  document.getElementById("modeSelect").onchange = changeMode;
 
+  startBlock();
+}
+
+function changeMode(){
+  trainingMode = document.getElementById("modeSelect").value;
   startBlock();
 }
 
@@ -356,10 +395,21 @@ function clearSpeechBox(){
   document.getElementById("speechScore").innerText = "";
 }
 
+function getPromptText(frase){
+  if(trainingMode === "es_en") return frase.es;
+  return frase.en;
+}
+
+function getAnswerText(frase){
+  if(trainingMode === "es_en") return frase.en;
+  return frase.es;
+}
+
 function startBlock(){
   stopSpeaking();
   clearSpeechBox();
   document.getElementById("message").innerText = "";
+  document.getElementById("answer").innerText = "";
 
   const block = document.getElementById("blockSelect").value;
   modoGlobal = block === "repaso_global";
@@ -433,7 +483,7 @@ function next(){
 
   ultima = actual;
 
-  document.getElementById("es").innerText = actual.es;
+  document.getElementById("es").innerText = getPromptText(actual);
 
   updateBar();
   updateStats();
@@ -441,7 +491,7 @@ function next(){
 
 function showAnswer(){
   if(!actual) return;
-  document.getElementById("answer").innerText = actual.en;
+  document.getElementById("answer").innerText = getAnswerText(actual);
 }
 
 function same(a, b){
