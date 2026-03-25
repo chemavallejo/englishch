@@ -23,12 +23,7 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 .progressBar{height:12px;width:0%;background:#38bdf8;transition:width .3s}
 .message{margin-top:10px;font-size:14px;color:#facc15}
 .speechBox{margin-top:14px;padding:12px;border-radius:10px;background:#0b1220}
-.speechTitle{font-size:14px;color:#94a3b8;margin-bottom:6px}
-.speechText{font-size:16px;color:#e2e8f0;min-height:22px}
 .score{margin-top:8px;font-size:16px;font-weight:bold}
-.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
-.controlGroup{display:flex;flex-direction:column}
-label{font-size:14px;color:#cbd5f5}
 </style>
 </head>
 
@@ -38,26 +33,18 @@ label{font-size:14px;color:#cbd5f5}
 
 <h1>Entrenamiento de frases</h1>
 
-<div class="controls">
-  <div class="controlGroup">
-    <label>Bloque:</label>
-    <select id="blockSelect"></select>
-  </div>
+<label>Bloque:</label>
+<select id="blockSelect"></select>
 
-  <div class="controlGroup">
-    <label>Modo:</label>
-    <select id="modeSelect">
-      <option value="es_en">Español → Inglés</option>
-      <option value="en_es">Inglés → Español</option>
-    </select>
-  </div>
-</div>
+<label>Modo:</label>
+<select id="modeSelect">
+<option value="es_en">Español → Inglés</option>
+<option value="en_es">🎧 Listening Inglés → Español</option>
+</select>
 
 <div class="progressContainer">
 <div id="progressBar" class="progressBar"></div>
 </div>
-
-<div id="message" class="message"></div>
 
 <div id="counter"></div>
 
@@ -66,16 +53,14 @@ label{font-size:14px;color:#cbd5f5}
 
 <div>
 <button class="show" onclick="showAnswer()">Ver respuesta</button>
-<button class="listen" onclick="speakCurrent()">🔊 Escuchar</button>
+<button class="listen" onclick="speakEnglish()">🔊 Escuchar</button>
 <button class="speak" onclick="startRecognition()">🎤 Hablar</button>
 <button class="ok" onclick="markCorrect()">Correcto</button>
 <button class="bad" onclick="markWrong()">Incorrecto</button>
 </div>
 
 <div class="speechBox">
-  <div class="speechTitle">Lo que la app ha entendido:</div>
-  <div id="speechResult" class="speechText">—</div>
-  <div id="speechScore" class="score"></div>
+<div id="speechScore" class="score"></div>
 </div>
 
 <div class="stats">
@@ -88,456 +73,188 @@ Errores acumulados: <span id="globalErrorCount">0</span>
 </div>
 
 <script>
-const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
-const STORAGE_KEY = "errores_acumulados_frases";
+const SHEET_ID="1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY"
+const STORAGE_KEY="errores_acumulados_frases"
 
-let frases = [];
-let bloqueActual = [];
-let erroresBloque = [];
-let erroresGlobal = [];
-let cola = [];
-let indice = 0;
-let modoRepaso = false;
-let modoGlobal = false;
-let actual = null;
-let ok = 0;
-let bad = 0;
-let ultima = null;
-let selectedVoice = null;
-let recognition = null;
-let recognizing = false;
-let trainingMode = "es_en";
+let frases=[]
+let bloqueActual=[]
+let erroresBloque=[]
+let erroresGlobal=[]
+let cola=[]
+let indice=0
+let modoRepaso=false
+let modoGlobal=false
+let actual=null
+let ok=0
+let bad=0
+let ultima=null
+let selectedVoice=null
+let recognition=null
+let trainingMode="es_en"
 
-function loadGlobal(){
-  const d = localStorage.getItem(STORAGE_KEY);
-  if(d) erroresGlobal = JSON.parse(d);
+function speakEnglish(){
+if(!actual) return
+const u=new SpeechSynthesisUtterance(actual.en)
+u.lang="en-US"
+speechSynthesis.cancel()
+speechSynthesis.speak(u)
 }
 
-function saveGlobal(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(erroresGlobal));
+function autoSpeak(){
+if(trainingMode==="en_es"){
+setTimeout(()=>speakEnglish(),300)
 }
-
-function shuffle(a){
-  for(let i = a.length - 1; i > 0; i--){
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-function initVoices(){
-  const voices = window.speechSynthesis.getVoices();
-  selectedVoice =
-    voices.find(v => v.lang === "en-US") ||
-    voices.find(v => v.lang === "en-GB") ||
-    voices.find(v => v.lang && v.lang.startsWith("en")) ||
-    null;
-}
-
-function stopSpeaking(){
-  if("speechSynthesis" in window){
-    window.speechSynthesis.cancel();
-  }
-}
-
-function speakText(text, lang = "en-US"){
-  if(!text) return;
-
-  stopSpeaking();
-
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.lang = lang;
-  utter.rate = 0.9;
-  utter.pitch = 1;
-  utter.volume = 1;
-
-  if(lang.startsWith("en") && selectedVoice){
-    utter.voice = selectedVoice;
-    utter.lang = selectedVoice.lang;
-  }
-
-  window.speechSynthesis.speak(utter);
-}
-
-function speakCurrent(){
-  if(!actual) return;
-
-  if(trainingMode === "es_en"){
-    speakText(actual.en, "en-US");
-  } else {
-    speakText(actual.en, "en-US");
-  }
-}
-
-function parseCSVLine(line){
-  const result = [];
-  let current = "";
-  let inQuotes = false;
-
-  for(let i = 0; i < line.length; i++){
-    const char = line[i];
-    const next = line[i + 1];
-
-    if(char === '"'){
-      if(inQuotes && next === '"'){
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if(char === "," && !inQuotes){
-      result.push(current);
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-
-  result.push(current);
-  return result.map(v => v.trim());
-}
-
-function normalizeText(text){
-  return (text || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[.,!?;:()"']/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function levenshtein(a, b){
-  const matrix = [];
-
-  for(let i = 0; i <= b.length; i++){
-    matrix[i] = [i];
-  }
-  for(let j = 0; j <= a.length; j++){
-    matrix[0][j] = j;
-  }
-
-  for(let i = 1; i <= b.length; i++){
-    for(let j = 1; j <= a.length; j++){
-      if(b.charAt(i - 1) === a.charAt(j - 1)){
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
-      }
-    }
-  }
-
-  return matrix[b.length][a.length];
-}
-
-function similarityScore(a, b){
-  const aa = normalizeText(a);
-  const bb = normalizeText(b);
-
-  if(!aa && !bb) return 100;
-  if(!aa || !bb) return 0;
-  if(aa === bb) return 100;
-
-  const dist = levenshtein(aa, bb);
-  const maxLen = Math.max(aa.length, bb.length);
-  return Math.round((1 - dist / maxLen) * 100);
-}
-
-function evaluateSpeech(recognized, expected){
-  const score = similarityScore(recognized, expected);
-
-  if(score >= 85){
-    return { label: "✅ Muy bien", score };
-  }else if(score >= 60){
-    return { label: "🟡 Casi", score };
-  }else{
-    return { label: "🔴 Inténtalo otra vez", score };
-  }
-}
-
-function initRecognition(){
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if(!SpeechRecognition) return;
-
-  recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.interimResults = false;
-  recognition.maxAlternatives = 1;
-
-  recognition.onstart = () => {
-    recognizing = true;
-    document.getElementById("speechResult").innerText = "Escuchando...";
-    document.getElementById("speechScore").innerText = "";
-  };
-
-  recognition.onresult = (event) => {
-    const recognized = event.results[0][0].transcript;
-    document.getElementById("speechResult").innerText = recognized;
-
-    if(actual && actual.en){
-      const result = evaluateSpeech(recognized, actual.en);
-      document.getElementById("speechScore").innerText = `${result.label} (${result.score}%)`;
-    }
-  };
-
-  recognition.onerror = (event) => {
-    let msg = "Error al reconocer la voz";
-    if(event.error === "not-allowed") msg = "No has dado permiso al micrófono";
-    if(event.error === "no-speech") msg = "No se ha detectado voz";
-    if(event.error === "audio-capture") msg = "No se ha detectado micrófono";
-    document.getElementById("speechResult").innerText = msg;
-    document.getElementById("speechScore").innerText = "";
-  };
-
-  recognition.onend = () => {
-    recognizing = false;
-  };
-}
-
-function startRecognition(){
-  if(!actual) return;
-
-  if(trainingMode !== "es_en"){
-    document.getElementById("speechResult").innerText = "🎤 El modo hablar puntúa tu inglés. Úsalo en Español → Inglés.";
-    document.getElementById("speechScore").innerText = "";
-    return;
-  }
-
-  if(!recognition){
-    document.getElementById("speechResult").innerText = "Este navegador no soporta reconocimiento de voz";
-    document.getElementById("speechScore").innerText = "";
-    return;
-  }
-
-  if(recognizing){
-    recognition.stop();
-    return;
-  }
-
-  stopSpeaking();
-  recognition.start();
-}
-
-async function cargar(){
-  try{
-    loadGlobal();
-
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
-    const r = await fetch(url);
-    const t = await r.text();
-
-    const rows = t.split(/\r?\n/);
-    rows.shift();
-
-    frases = [];
-
-    rows.forEach(r => {
-      if(!r.trim()) return;
-
-      const cols = parseCSVLine(r);
-
-      const bloque = cols[1]?.trim();
-      const es = cols[2]?.trim();
-      const en = cols[3]?.trim();
-      const activa = cols[4]?.trim();
-
-      if(bloque && es && en && activa && activa.toLowerCase().includes("x")){
-        frases.push({ bloque, es, en });
-      }
-    });
-
-    if(frases.length === 0){
-      document.getElementById("es").innerText = "No se han encontrado frases activas";
-      return;
-    }
-
-    initBlocks();
-  }catch(error){
-    console.error(error);
-    document.getElementById("es").innerText = "Error al cargar los datos";
-  }
-}
-
-function initBlocks(){
-  const blocks = [...new Set(frases.map(f => f.bloque))];
-  const sel = document.getElementById("blockSelect");
-  sel.innerHTML = "";
-
-  blocks.forEach(b => {
-    const o = document.createElement("option");
-    o.value = b;
-    o.textContent = b;
-    sel.appendChild(o);
-  });
-
-  const o = document.createElement("option");
-  o.value = "repaso_global";
-  o.textContent = "repaso acumulado";
-  sel.appendChild(o);
-
-  sel.onchange = startBlock;
-  document.getElementById("modeSelect").onchange = changeMode;
-
-  startBlock();
-}
-
-function changeMode(){
-  trainingMode = document.getElementById("modeSelect").value;
-  startBlock();
-}
-
-function clearSpeechBox(){
-  document.getElementById("speechResult").innerText = "—";
-  document.getElementById("speechScore").innerText = "";
-}
-
-function getPromptText(frase){
-  if(trainingMode === "es_en") return frase.es;
-  return frase.en;
-}
-
-function getAnswerText(frase){
-  if(trainingMode === "es_en") return frase.en;
-  return frase.es;
-}
-
-function startBlock(){
-  stopSpeaking();
-  clearSpeechBox();
-  document.getElementById("message").innerText = "";
-  document.getElementById("answer").innerText = "";
-
-  const block = document.getElementById("blockSelect").value;
-  modoGlobal = block === "repaso_global";
-  erroresBloque = [];
-
-  if(modoGlobal){
-    bloqueActual = [...erroresGlobal];
-    modoRepaso = true;
-  }else{
-    bloqueActual = frases.filter(f => f.bloque === block);
-    shuffle(bloqueActual);
-    modoRepaso = false;
-  }
-
-  cola = [...bloqueActual];
-  indice = 0;
-
-  next();
-}
-
-function updateBar(){
-  const total = bloqueActual.length;
-  if(total === 0) return;
-
-  const done = modoRepaso ? total - erroresBloque.length : indice;
-  const pct = (done / total) * 100;
-
-  document.getElementById("progressBar").style.width = pct + "%";
-  document.getElementById("counter").innerText = `Frase ${Math.min(done, total)} / ${total}`;
-}
-
-function next(){
-  stopSpeaking();
-  clearSpeechBox();
-  document.getElementById("answer").innerText = "";
-
-  if(!modoRepaso){
-    if(indice >= cola.length){
-      modoRepaso = true;
-
-      if(erroresBloque.length === 0 && !modoGlobal){
-        document.getElementById("es").innerText = "Bloque completado 🎉";
-        updateBar();
-        updateStats();
-        return;
-      }
-
-      document.getElementById("message").innerText = "🔁 Repaso de errores";
-    }else{
-      actual = cola[indice];
-      indice++;
-    }
-  }
-
-  if(modoRepaso){
-    const lista = modoGlobal ? erroresGlobal : erroresBloque;
-
-    if(lista.length === 0){
-      document.getElementById("es").innerText = "Repaso completado 🎉";
-      updateBar();
-      updateStats();
-      return;
-    }
-
-    let i;
-    do{
-      i = Math.floor(Math.random() * lista.length);
-      actual = lista[i];
-    }while(actual === ultima && lista.length > 1);
-  }
-
-  ultima = actual;
-
-  document.getElementById("es").innerText = getPromptText(actual);
-
-  updateBar();
-  updateStats();
 }
 
 function showAnswer(){
-  if(!actual) return;
-  document.getElementById("answer").innerText = getAnswerText(actual);
+if(trainingMode==="es_en"){
+answer.innerText=actual.en
+}else{
+answer.innerText="EN: "+actual.en+"  |  ES: "+actual.es
+}
 }
 
-function same(a, b){
-  return a.es === b.es && a.en === b.en;
+function next(){
+
+answer.innerText=""
+
+if(!modoRepaso){
+
+if(indice>=cola.length){
+
+modoRepaso=true
+
+if(erroresBloque.length===0){
+es.innerText="Bloque completado 🎉"
+return
+}
+
+}else{
+actual=cola[indice]
+indice++
+}
+
+}
+
+if(modoRepaso){
+
+let lista=modoGlobal?erroresGlobal:erroresBloque
+
+if(lista.length===0){
+es.innerText="Repaso completado 🎉"
+return
+}
+
+let i=Math.floor(Math.random()*lista.length)
+actual=lista[i]
+}
+
+ultima=actual
+
+if(trainingMode==="es_en"){
+es.innerText=actual.es
+}else{
+es.innerText="🔊 Escucha la frase..."
+}
+
+updateBar()
+updateStats()
+autoSpeak()
+}
+
+function updateBar(){
+let total=bloqueActual.length
+let done=indice
+let pct=(done/total)*100
+progressBar.style.width=pct+"%"
+counter.innerText="Frase "+done+" / "+total
 }
 
 function markCorrect(){
-  ok++;
-
-  erroresBloque = erroresBloque.filter(e => !same(e, actual));
-
-  if(modoGlobal){
-    erroresGlobal = erroresGlobal.filter(e => !same(e, actual));
-    saveGlobal();
-  }
-
-  next();
+ok++
+erroresBloque=erroresBloque.filter(e=>e.en!==actual.en)
+if(modoGlobal){
+erroresGlobal=erroresGlobal.filter(e=>e.en!==actual.en)
+localStorage.setItem(STORAGE_KEY,JSON.stringify(erroresGlobal))
+}
+next()
 }
 
 function markWrong(){
-  bad++;
-
-  if(!erroresBloque.find(e => same(e, actual))) erroresBloque.push(actual);
-
-  if(!erroresGlobal.find(e => same(e, actual))){
-    erroresGlobal.push(actual);
-    saveGlobal();
-  }
-
-  next();
+bad++
+if(!erroresBloque.find(e=>e.en===actual.en)) erroresBloque.push(actual)
+if(!erroresGlobal.find(e=>e.en===actual.en)){
+erroresGlobal.push(actual)
+localStorage.setItem(STORAGE_KEY,JSON.stringify(erroresGlobal))
+}
+next()
 }
 
 function updateStats(){
-  document.getElementById("okCount").innerText = ok;
-  document.getElementById("badCount").innerText = bad;
-  document.getElementById("errorCount").innerText = erroresBloque.length;
-  document.getElementById("globalErrorCount").innerText = erroresGlobal.length;
+okCount.innerText=ok
+badCount.innerText=bad
+errorCount.innerText=erroresBloque.length
+globalErrorCount.innerText=erroresGlobal.length
 }
 
-if("speechSynthesis" in window){
-  initVoices();
-  window.speechSynthesis.onvoiceschanged = initVoices;
+function startBlock(){
+
+trainingMode=modeSelect.value
+
+let block=blockSelect.value
+modoGlobal=block==="repaso_global"
+
+erroresBloque=[]
+
+if(modoGlobal){
+bloqueActual=[...erroresGlobal]
+modoRepaso=true
+}else{
+bloqueActual=frases.filter(f=>f.bloque===block)
+modoRepaso=false
 }
 
-initRecognition();
-cargar();
+cola=[...bloqueActual]
+indice=0
+next()
+}
+
+async function cargar(){
+
+let url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`
+let r=await fetch(url)
+let t=await r.text()
+
+let rows=t.split(/\r?\n/).slice(1)
+
+rows.forEach(r=>{
+let m=r.split(",")
+if(m[4]&&m[4].toLowerCase().includes("x")){
+frases.push({bloque:m[1],es:m[2],en:m[3]})
+}
+})
+
+let blocks=[...new Set(frases.map(f=>f.bloque))]
+
+blocks.forEach(b=>{
+let o=document.createElement("option")
+o.value=b
+o.textContent=b
+blockSelect.appendChild(o)
+})
+
+let o=document.createElement("option")
+o.value="repaso_global"
+o.textContent="repaso acumulado"
+blockSelect.appendChild(o)
+
+blockSelect.onchange=startBlock
+modeSelect.onchange=startBlock
+
+startBlock()
+}
+
+cargar()
 </script>
 
 </body>
