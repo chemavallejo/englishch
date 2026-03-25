@@ -7,23 +7,28 @@
 
 <style>
 body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:12px;max-width:900px;margin:auto}
+.card{background:#1e293b;padding:20px;border-radius:12px;max-width:950px;margin:auto}
 h1{margin-top:0}
 select{padding:8px;border-radius:6px;border:none;margin-right:8px;margin-top:6px}
-.es{font-size:18px;font-weight:bold;line-height:1.45;margin-top:10px}
-.answer{margin-top:10px;font-size:18px;color:#cbd5f5}
 button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
 .show{background:#e5e7eb;color:black}
-.ok{background:#22c55e}
+.ok{background:#22c55e;color:white}
 .bad{background:#ef4444;color:white}
 .listen{background:#3b82f6;color:white}
 .speak{background:#a855f7;color:white}
+.story{background:#f59e0b;color:white}
+.storyShow{background:#14b8a6;color:white}
 .stats{margin-top:15px;font-size:14px;color:#94a3b8}
 .progressContainer{margin-top:12px;background:#0b1220;border-radius:8px;overflow:hidden;height:12px}
 .progressBar{height:12px;width:0%;background:#38bdf8;transition:width .3s}
-.message{margin-top:10px;font-size:14px;color:#facc15}
+.message{margin-top:10px;font-size:14px;color:#facc15;min-height:18px}
+.mainText{font-size:20px;font-weight:bold;line-height:1.5;margin-top:14px;white-space:pre-line}
+.answer{margin-top:12px;font-size:18px;color:#cbd5f5;white-space:pre-line}
 .speechBox{margin-top:14px;padding:12px;border-radius:10px;background:#0b1220}
 .score{margin-top:8px;font-size:16px;font-weight:bold}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
+.controlGroup{display:flex;flex-direction:column}
+label{font-size:14px;color:#cbd5f5}
 </style>
 </head>
 
@@ -33,228 +38,570 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 
 <h1>Entrenamiento de frases</h1>
 
-<label>Bloque:</label>
-<select id="blockSelect"></select>
+<div class="controls">
+  <div class="controlGroup">
+    <label>Bloque:</label>
+    <select id="blockSelect"></select>
+  </div>
 
-<label>Modo:</label>
-<select id="modeSelect">
-<option value="es_en">Español → Inglés</option>
-<option value="en_es">🎧 Listening Inglés → Español</option>
-</select>
-
-<div class="progressContainer">
-<div id="progressBar" class="progressBar"></div>
+  <div class="controlGroup">
+    <label>Modo:</label>
+    <select id="modeSelect">
+      <option value="es_en">Español → Inglés</option>
+      <option value="en_es">🎧 Listening Inglés → Español</option>
+    </select>
+  </div>
 </div>
 
+<div class="progressContainer">
+  <div id="progressBar" class="progressBar"></div>
+</div>
+
+<div id="message" class="message"></div>
 <div id="counter"></div>
 
-<div id="es" class="es">Cargando...</div>
+<div id="mainText" class="mainText">Cargando...</div>
 <div id="answer" class="answer"></div>
 
 <div>
-<button class="show" onclick="showAnswer()">Ver respuesta</button>
-<button class="listen" onclick="speakEnglish()">🔊 Escuchar</button>
-<button class="speak" onclick="startRecognition()">🎤 Hablar</button>
-<button class="ok" onclick="markCorrect()">Correcto</button>
-<button class="bad" onclick="markWrong()">Incorrecto</button>
+  <button class="show" onclick="showAnswer()">Ver respuesta</button>
+  <button class="listen" onclick="speakCurrent()">🔊 Escuchar</button>
+  <button class="speak" onclick="startRecognition()">🎤 Hablar</button>
+  <button class="story" onclick="playStory()">🎧 Historia</button>
+  <button class="storyShow" onclick="showStory()">Ver historia</button>
+  <button class="ok" onclick="markCorrect()">Correcto</button>
+  <button class="bad" onclick="markWrong()">Incorrecto</button>
 </div>
 
 <div class="speechBox">
-<div id="speechScore" class="score"></div>
+  <div id="speechScore" class="score"></div>
 </div>
 
 <div class="stats">
-Correctas: <span id="okCount">0</span> |
-Incorrectas: <span id="badCount">0</span> |
-Errores bloque: <span id="errorCount">0</span> |
-Errores acumulados: <span id="globalErrorCount">0</span>
+  Correctas: <span id="okCount">0</span> |
+  Incorrectas: <span id="badCount">0</span> |
+  Errores bloque: <span id="errorCount">0</span> |
+  Errores acumulados: <span id="globalErrorCount">0</span>
 </div>
 
 </div>
 
 <script>
-const SHEET_ID="1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY"
-const STORAGE_KEY="errores_acumulados_frases"
+const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
+const STORAGE_KEY = "errores_acumulados_frases";
 
-let frases=[]
-let bloqueActual=[]
-let erroresBloque=[]
-let erroresGlobal=[]
-let cola=[]
-let indice=0
-let modoRepaso=false
-let modoGlobal=false
-let actual=null
-let ok=0
-let bad=0
-let ultima=null
-let selectedVoice=null
-let recognition=null
-let trainingMode="es_en"
+let frases = [];
+let bloqueActual = [];
+let erroresBloque = [];
+let erroresGlobal = [];
+let cola = [];
+let indice = 0;
+let modoRepaso = false;
+let modoGlobal = false;
+let actual = null;
+let ok = 0;
+let bad = 0;
+let ultima = null;
+let selectedVoice = null;
+let recognition = null;
+let recognizing = false;
+let trainingMode = "es_en";
+let storyItems = [];
+let storyPlaying = false;
 
-function speakEnglish(){
-if(!actual) return
-const u=new SpeechSynthesisUtterance(actual.en)
-u.lang="en-US"
-speechSynthesis.cancel()
-speechSynthesis.speak(u)
+const mainTextEl = document.getElementById("mainText");
+const answerEl = document.getElementById("answer");
+const messageEl = document.getElementById("message");
+const counterEl = document.getElementById("counter");
+const progressBarEl = document.getElementById("progressBar");
+const speechScoreEl = document.getElementById("speechScore");
+const blockSelectEl = document.getElementById("blockSelect");
+const modeSelectEl = document.getElementById("modeSelect");
+
+function loadGlobal(){
+  const d = localStorage.getItem(STORAGE_KEY);
+  if(d) erroresGlobal = JSON.parse(d);
 }
 
-function autoSpeak(){
-if(trainingMode==="en_es"){
-setTimeout(()=>speakEnglish(),300)
-}
+function saveGlobal(){
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(erroresGlobal));
 }
 
-function showAnswer(){
-if(trainingMode==="es_en"){
-answer.innerText=actual.en
-}else{
-answer.innerText="EN: "+actual.en+"  |  ES: "+actual.es
-}
-}
-
-function next(){
-
-answer.innerText=""
-
-if(!modoRepaso){
-
-if(indice>=cola.length){
-
-modoRepaso=true
-
-if(erroresBloque.length===0){
-es.innerText="Bloque completado 🎉"
-return
+function shuffle(a){
+  const arr = [...a];
+  for(let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
 }
 
-}else{
-actual=cola[indice]
-indice++
+function initVoices(){
+  const voices = window.speechSynthesis.getVoices();
+  selectedVoice =
+    voices.find(v => v.lang === "en-US") ||
+    voices.find(v => v.lang === "en-GB") ||
+    voices.find(v => v.lang && v.lang.startsWith("en")) ||
+    null;
 }
 
+function stopSpeaking(){
+  if("speechSynthesis" in window){
+    window.speechSynthesis.cancel();
+  }
 }
 
-if(modoRepaso){
+function speakText(text, lang = "en-US", rate = 0.9){
+  if(!text) return;
 
-let lista=modoGlobal?erroresGlobal:erroresBloque
+  stopSpeaking();
 
-if(lista.length===0){
-es.innerText="Repaso completado 🎉"
-return
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = lang;
+  utter.rate = rate;
+  utter.pitch = 1;
+  utter.volume = 1;
+
+  if(lang.startsWith("en") && selectedVoice){
+    utter.voice = selectedVoice;
+    utter.lang = selectedVoice.lang;
+  }
+
+  window.speechSynthesis.speak(utter);
 }
 
-let i=Math.floor(Math.random()*lista.length)
-actual=lista[i]
+function speakCurrent(){
+  if(!actual) return;
+
+  if(trainingMode === "es_en"){
+    speakText(actual.en, "en-US", 0.9);
+  } else {
+    speakText(actual.en, "en-US", 0.9);
+  }
 }
 
-ultima=actual
+function parseCSVLine(line){
+  const result = [];
+  let current = "";
+  let inQuotes = false;
 
-if(trainingMode==="es_en"){
-es.innerText=actual.es
-}else{
-es.innerText="🔊 Escucha la frase..."
+  for(let i = 0; i < line.length; i++){
+    const char = line[i];
+    const next = line[i + 1];
+
+    if(char === '"'){
+      if(inQuotes && next === '"'){
+        current += '"';
+        i++;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if(char === "," && !inQuotes){
+      result.push(current);
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+
+  result.push(current);
+  return result.map(v => v.trim());
 }
 
-updateBar()
-updateStats()
-autoSpeak()
+function normalizeText(text){
+  return (text || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[.,!?;:()"']/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function levenshtein(a, b){
+  const matrix = [];
+
+  for(let i = 0; i <= b.length; i++) matrix[i] = [i];
+  for(let j = 0; j <= a.length; j++) matrix[0][j] = j;
+
+  for(let i = 1; i <= b.length; i++){
+    for(let j = 1; j <= a.length; j++){
+      if(b.charAt(i - 1) === a.charAt(j - 1)){
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+
+  return matrix[b.length][a.length];
+}
+
+function similarityScore(a, b){
+  const aa = normalizeText(a);
+  const bb = normalizeText(b);
+
+  if(!aa && !bb) return 100;
+  if(!aa || !bb) return 0;
+  if(aa === bb) return 100;
+
+  const dist = levenshtein(aa, bb);
+  const maxLen = Math.max(aa.length, bb.length);
+  return Math.round((1 - dist / maxLen) * 100);
+}
+
+function evaluateSpeech(recognized, expected){
+  const score = similarityScore(recognized, expected);
+
+  if(score >= 85){
+    return { label: "✅ Muy bien", score };
+  }else if(score >= 60){
+    return { label: "🟡 Casi", score };
+  }else{
+    return { label: "🔴 Inténtalo otra vez", score };
+  }
+}
+
+function initRecognition(){
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if(!SpeechRecognition) return;
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.onstart = () => {
+    recognizing = true;
+    speechScoreEl.innerText = "Escuchando...";
+  };
+
+  recognition.onresult = (event) => {
+    const recognized = event.results[0][0].transcript;
+
+    if(actual && actual.en){
+      const result = evaluateSpeech(recognized, actual.en);
+      speechScoreEl.innerText = `${recognized}\n${result.label} (${result.score}%)`;
+    }
+  };
+
+  recognition.onerror = (event) => {
+    let msg = "Error al reconocer la voz";
+    if(event.error === "not-allowed") msg = "No has dado permiso al micrófono";
+    if(event.error === "no-speech") msg = "No se ha detectado voz";
+    if(event.error === "audio-capture") msg = "No se ha detectado micrófono";
+    speechScoreEl.innerText = msg;
+  };
+
+  recognition.onend = () => {
+    recognizing = false;
+  };
+}
+
+function startRecognition(){
+  if(!actual) return;
+
+  if(trainingMode !== "es_en"){
+    speechScoreEl.innerText = "🎤 El modo hablar puntúa tu inglés. Úsalo en Español → Inglés.";
+    return;
+  }
+
+  if(!recognition){
+    speechScoreEl.innerText = "Este navegador no soporta reconocimiento de voz";
+    return;
+  }
+
+  if(recognizing){
+    recognition.stop();
+    return;
+  }
+
+  stopSpeaking();
+  recognition.start();
+}
+
+function clearFeedback(){
+  answerEl.innerText = "";
+  speechScoreEl.innerText = "";
+  messageEl.innerText = "";
+}
+
+function getPromptText(frase){
+  return trainingMode === "es_en" ? frase.es : "🔊 Escucha la frase...";
+}
+
+function getAnswerText(frase){
+  if(trainingMode === "es_en"){
+    return frase.en;
+  }
+  return `EN: ${frase.en}\nES: ${frase.es}`;
 }
 
 function updateBar(){
-let total=bloqueActual.length
-let done=indice
-let pct=(done/total)*100
-progressBar.style.width=pct+"%"
-counter.innerText="Frase "+done+" / "+total
-}
+  const total = bloqueActual.length;
+  if(total === 0) return;
 
-function markCorrect(){
-ok++
-erroresBloque=erroresBloque.filter(e=>e.en!==actual.en)
-if(modoGlobal){
-erroresGlobal=erroresGlobal.filter(e=>e.en!==actual.en)
-localStorage.setItem(STORAGE_KEY,JSON.stringify(erroresGlobal))
-}
-next()
-}
+  const done = modoRepaso ? total - erroresBloque.length : indice;
+  const pct = (done / total) * 100;
 
-function markWrong(){
-bad++
-if(!erroresBloque.find(e=>e.en===actual.en)) erroresBloque.push(actual)
-if(!erroresGlobal.find(e=>e.en===actual.en)){
-erroresGlobal.push(actual)
-localStorage.setItem(STORAGE_KEY,JSON.stringify(erroresGlobal))
-}
-next()
+  progressBarEl.style.width = pct + "%";
+  counterEl.innerText = `Frase ${Math.min(done, total)} / ${total}`;
 }
 
 function updateStats(){
-okCount.innerText=ok
-badCount.innerText=bad
-errorCount.innerText=erroresBloque.length
-globalErrorCount.innerText=erroresGlobal.length
+  document.getElementById("okCount").innerText = ok;
+  document.getElementById("badCount").innerText = bad;
+  document.getElementById("errorCount").innerText = erroresBloque.length;
+  document.getElementById("globalErrorCount").innerText = erroresGlobal.length;
+}
+
+function same(a, b){
+  return a.es === b.es && a.en === b.en;
+}
+
+function next(){
+  stopSpeaking();
+  clearFeedback();
+  storyItems = [];
+  storyPlaying = false;
+
+  if(!modoRepaso){
+    if(indice >= cola.length){
+      modoRepaso = true;
+
+      if(erroresBloque.length === 0 && !modoGlobal){
+        mainTextEl.innerText = "Bloque completado 🎉";
+        updateBar();
+        updateStats();
+        return;
+      }
+
+      messageEl.innerText = "🔁 Repaso de errores";
+    } else {
+      actual = cola[indice];
+      indice++;
+    }
+  }
+
+  if(modoRepaso){
+    const lista = modoGlobal ? erroresGlobal : erroresBloque;
+
+    if(lista.length === 0){
+      mainTextEl.innerText = "Repaso completado 🎉";
+      updateBar();
+      updateStats();
+      return;
+    }
+
+    let i;
+    do{
+      i = Math.floor(Math.random() * lista.length);
+      actual = lista[i];
+    }while(actual === ultima && lista.length > 1);
+  }
+
+  ultima = actual;
+  mainTextEl.innerText = getPromptText(actual);
+
+  updateBar();
+  updateStats();
+
+  if(trainingMode === "en_es"){
+    setTimeout(() => speakCurrent(), 350);
+  }
+}
+
+function showAnswer(){
+  if(!actual) return;
+  answerEl.innerText = getAnswerText(actual);
+}
+
+function markCorrect(){
+  ok++;
+
+  erroresBloque = erroresBloque.filter(e => !same(e, actual));
+
+  if(modoGlobal){
+    erroresGlobal = erroresGlobal.filter(e => !same(e, actual));
+    saveGlobal();
+  }
+
+  next();
+}
+
+function markWrong(){
+  bad++;
+
+  if(!erroresBloque.find(e => same(e, actual))) erroresBloque.push(actual);
+
+  if(!erroresGlobal.find(e => same(e, actual))){
+    erroresGlobal.push(actual);
+    saveGlobal();
+  }
+
+  next();
 }
 
 function startBlock(){
+  stopSpeaking();
+  clearFeedback();
+  storyItems = [];
+  storyPlaying = false;
 
-trainingMode=modeSelect.value
+  trainingMode = modeSelectEl.value;
 
-let block=blockSelect.value
-modoGlobal=block==="repaso_global"
+  const block = blockSelectEl.value;
+  modoGlobal = block === "repaso_global";
+  erroresBloque = [];
 
-erroresBloque=[]
+  if(modoGlobal){
+    bloqueActual = [...erroresGlobal];
+    modoRepaso = true;
+  } else {
+    bloqueActual = frases.filter(f => f.bloque === block);
+    bloqueActual = shuffle(bloqueActual);
+    modoRepaso = false;
+  }
 
-if(modoGlobal){
-bloqueActual=[...erroresGlobal]
-modoRepaso=true
-}else{
-bloqueActual=frases.filter(f=>f.bloque===block)
-modoRepaso=false
+  cola = [...bloqueActual];
+  indice = 0;
+
+  next();
 }
 
-cola=[...bloqueActual]
-indice=0
-next()
+function buildStoryItems(){
+  const block = blockSelectEl.value;
+  let source = [];
+
+  if(block === "repaso_global"){
+    source = [...erroresGlobal];
+  } else {
+    source = frases.filter(f => f.bloque === block);
+  }
+
+  source = shuffle(source);
+  return source.slice(0, Math.min(6, source.length));
+}
+
+function playStory(){
+  stopSpeaking();
+  clearFeedback();
+
+  storyItems = buildStoryItems();
+
+  if(storyItems.length === 0){
+    messageEl.innerText = "No hay frases suficientes para crear historia";
+    return;
+  }
+
+  storyPlaying = true;
+  mainTextEl.innerText = "🎧 Escucha la historia...";
+  messageEl.innerText = "Luego pulsa “Ver historia” para comprobar EN + ES";
+
+  let delay = 0;
+
+  storyItems.forEach((item, idx) => {
+    const utter = new SpeechSynthesisUtterance(item.en);
+    utter.lang = selectedVoice ? selectedVoice.lang : "en-US";
+    utter.rate = 0.9;
+    utter.pitch = 1;
+    utter.volume = 1;
+    if(selectedVoice) utter.voice = selectedVoice;
+
+    setTimeout(() => {
+      window.speechSynthesis.speak(utter);
+    }, delay);
+
+    delay += Math.max(1800, item.en.length * 70);
+
+    if(idx === storyItems.length - 1){
+      setTimeout(() => {
+        messageEl.innerText = "✅ Historia reproducida. Pulsa “Ver historia”.";
+      }, delay + 200);
+    }
+  });
+}
+
+function showStory(){
+  if(!storyItems.length){
+    answerEl.innerText = "Primero pulsa 🎧 Historia";
+    return;
+  }
+
+  const enText = storyItems.map(x => x.en).join("\n");
+  const esText = storyItems.map(x => x.es).join("\n");
+
+  answerEl.innerText = `EN:\n${enText}\n\nES:\n${esText}`;
 }
 
 async function cargar(){
+  try{
+    loadGlobal();
 
-let url=`https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`
-let r=await fetch(url)
-let t=await r.text()
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
+    const r = await fetch(url);
+    const t = await r.text();
 
-let rows=t.split(/\r?\n/).slice(1)
+    const rows = t.split(/\r?\n/);
+    rows.shift();
 
-rows.forEach(r=>{
-let m=r.split(",")
-if(m[4]&&m[4].toLowerCase().includes("x")){
-frases.push({bloque:m[1],es:m[2],en:m[3]})
+    frases = [];
+
+    rows.forEach(r => {
+      if(!r.trim()) return;
+
+      const cols = parseCSVLine(r);
+      const bloque = cols[1]?.trim();
+      const es = cols[2]?.trim();
+      const en = cols[3]?.trim();
+      const activa = cols[4]?.trim();
+
+      if(bloque && es && en && activa && activa.toLowerCase().includes("x")){
+        frases.push({ bloque, es, en });
+      }
+    });
+
+    if(frases.length === 0){
+      mainTextEl.innerText = "No se han encontrado frases activas";
+      return;
+    }
+
+    const blocks = [...new Set(frases.map(f => f.bloque))];
+    blockSelectEl.innerHTML = "";
+
+    blocks.forEach(b => {
+      const o = document.createElement("option");
+      o.value = b;
+      o.textContent = b;
+      blockSelectEl.appendChild(o);
+    });
+
+    const o = document.createElement("option");
+    o.value = "repaso_global";
+    o.textContent = "repaso acumulado";
+    blockSelectEl.appendChild(o);
+
+    blockSelectEl.onchange = startBlock;
+    modeSelectEl.onchange = startBlock;
+
+    startBlock();
+  }catch(error){
+    console.error(error);
+    mainTextEl.innerText = "Error al cargar los datos";
+  }
 }
-})
 
-let blocks=[...new Set(frases.map(f=>f.bloque))]
-
-blocks.forEach(b=>{
-let o=document.createElement("option")
-o.value=b
-o.textContent=b
-blockSelect.appendChild(o)
-})
-
-let o=document.createElement("option")
-o.value="repaso_global"
-o.textContent="repaso acumulado"
-blockSelect.appendChild(o)
-
-blockSelect.onchange=startBlock
-modeSelect.onchange=startBlock
-
-startBlock()
+if("speechSynthesis" in window){
+  initVoices();
+  window.speechSynthesis.onvoiceschanged = initVoices;
 }
 
-cargar()
+initRecognition();
+cargar();
 </script>
 
 </body>
