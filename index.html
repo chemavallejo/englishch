@@ -3,32 +3,31 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Entrenamiento de frases</title>
+<title>Entrenamiento de inglés</title>
 
 <style>
 body{font-family:Arial;background:#0f172a;color:white;margin:0;padding:20px}
-.card{background:#1e293b;padding:20px;border-radius:12px;max-width:950px;margin:auto}
+.card{background:#1e293b;padding:20px;border-radius:12px;max-width:980px;margin:auto}
 h1{margin-top:0}
-select{padding:8px;border-radius:6px;border:none;margin-right:8px;margin-top:6px}
+select{padding:8px;border-radius:6px;border:none;margin-top:6px}
 button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bold;cursor:pointer}
 .show{background:#e5e7eb;color:black}
 .ok{background:#22c55e;color:white}
 .bad{background:#ef4444;color:white}
 .listen{background:#3b82f6;color:white}
 .speak{background:#a855f7;color:white}
-.story{background:#f59e0b;color:white}
-.storyShow{background:#14b8a6;color:white}
 .stats{margin-top:15px;font-size:14px;color:#94a3b8}
 .progressContainer{margin-top:12px;background:#0b1220;border-radius:8px;overflow:hidden;height:12px}
 .progressBar{height:12px;width:0%;background:#38bdf8;transition:width .3s}
 .message{margin-top:10px;font-size:14px;color:#facc15;min-height:18px}
 .mainText{font-size:20px;font-weight:bold;line-height:1.5;margin-top:14px;white-space:pre-line}
 .answer{margin-top:12px;font-size:18px;color:#cbd5f5;white-space:pre-line}
-.speechBox{margin-top:14px;padding:12px;border-radius:10px;background:#0b1220}
+.feedbackBox{margin-top:14px;padding:12px;border-radius:10px;background:#0b1220}
 .score{margin-top:8px;font-size:16px;font-weight:bold;white-space:pre-line}
-.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:end;margin-bottom:8px}
+.controls{display:flex;flex-wrap:wrap;gap:14px;align-items:end;margin-bottom:8px}
 .controlGroup{display:flex;flex-direction:column}
-label{font-size:14px;color:#cbd5f5}
+label{font-size:14px;color:#cbd5f5;margin-bottom:4px}
+.small{font-size:13px;color:#94a3b8}
 </style>
 </head>
 
@@ -36,11 +35,19 @@ label{font-size:14px;color:#cbd5f5}
 
 <div class="card">
 
-<h1>Entrenamiento de frases</h1>
+<h1>Entrenamiento de inglés</h1>
 
 <div class="controls">
   <div class="controlGroup">
-    <label>Bloque:</label>
+    <label>Fuente:</label>
+    <select id="sourceSelect">
+      <option value="frases">FRASES</option>
+      <option value="textos">TEXTOS</option>
+    </select>
+  </div>
+
+  <div class="controlGroup">
+    <label>Capítulo:</label>
     <select id="blockSelect"></select>
   </div>
 
@@ -48,10 +55,12 @@ label{font-size:14px;color:#cbd5f5}
     <label>Modo:</label>
     <select id="modeSelect">
       <option value="es_en">Español → Inglés</option>
-      <option value="en_es">🎧 Listening Inglés → Español</option>
+      <option value="en_es">Listening Inglés → Español</option>
     </select>
   </div>
 </div>
+
+<div class="small" id="modeHint"></div>
 
 <div class="progressContainer">
   <div id="progressBar" class="progressBar"></div>
@@ -66,14 +75,12 @@ label{font-size:14px;color:#cbd5f5}
 <div>
   <button class="show" onclick="showAnswer()">Ver respuesta</button>
   <button class="listen" onclick="speakCurrent()">🔊 Escuchar</button>
-  <button class="speak" onclick="startRecognition()">🎤 Hablar</button>
-  <button class="story" onclick="playStory()">🎧 Historia</button>
-  <button class="storyShow" onclick="showStory()">Ver historia</button>
+  <button class="speak" id="speakBtn" onclick="startRecognition()">🎤 Hablar</button>
   <button class="ok" onclick="markCorrect()">Correcto</button>
   <button class="bad" onclick="markWrong()">Incorrecto</button>
 </div>
 
-<div class="speechBox">
+<div class="feedbackBox">
   <div id="speechScore" class="score"></div>
 </div>
 
@@ -88,9 +95,24 @@ label{font-size:14px;color:#cbd5f5}
 
 <script>
 const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
-const STORAGE_KEY = "errores_acumulados_frases";
 
-let frases = [];
+// Claves separadas para no mezclar frases y textos
+const STORAGE_KEYS = {
+  frases: "errores_acumulados_frases",
+  textos: "errores_acumulados_textos"
+};
+
+const SHEET_NAMES = {
+  frases: "FRASES",
+  textos: "TEXTOS"
+};
+
+let frasesData = [];
+let textosData = [];
+
+let currentSource = "frases";   // frases | textos
+let trainingMode = "es_en";     // es_en | en_es
+
 let bloqueActual = [];
 let erroresBloque = [];
 let erroresGlobal = [];
@@ -102,29 +124,42 @@ let actual = null;
 let ok = 0;
 let bad = 0;
 let ultima = null;
+
 let selectedVoice = null;
 let recognition = null;
 let recognizing = false;
-let trainingMode = "es_en";
-let storyItems = [];
-let storyPlaying = false;
 
-const mainTextEl = document.getElementById("mainText");
-const answerEl = document.getElementById("answer");
-const messageEl = document.getElementById("message");
-const counterEl = document.getElementById("counter");
-const progressBarEl = document.getElementById("progressBar");
-const speechScoreEl = document.getElementById("speechScore");
+const sourceSelectEl = document.getElementById("sourceSelect");
 const blockSelectEl = document.getElementById("blockSelect");
 const modeSelectEl = document.getElementById("modeSelect");
+const modeHintEl = document.getElementById("modeHint");
+const progressBarEl = document.getElementById("progressBar");
+const messageEl = document.getElementById("message");
+const counterEl = document.getElementById("counter");
+const mainTextEl = document.getElementById("mainText");
+const answerEl = document.getElementById("answer");
+const speechScoreEl = document.getElementById("speechScore");
+const speakBtnEl = document.getElementById("speakBtn");
+
+function getStorageKey(){
+  return STORAGE_KEYS[currentSource];
+}
+
+function getCurrentDataset(){
+  return currentSource === "frases" ? frasesData : textosData;
+}
+
+function getCurrentBlockField(){
+  return currentSource === "frases" ? "bloque" : "capitulo";
+}
 
 function loadGlobal(){
-  const d = localStorage.getItem(STORAGE_KEY);
-  if(d) erroresGlobal = JSON.parse(d);
+  const d = localStorage.getItem(getStorageKey());
+  erroresGlobal = d ? JSON.parse(d) : [];
 }
 
 function saveGlobal(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(erroresGlobal));
+  localStorage.setItem(getStorageKey(), JSON.stringify(erroresGlobal));
 }
 
 function shuffle(a){
@@ -172,7 +207,9 @@ function speakText(text, lang = "en-US", rate = 0.9){
 
 function speakCurrent(){
   if(!actual) return;
-  speakText(actual.en, "en-US", 0.9);
+
+  const text = currentSource === "frases" ? actual.en : actual.ingles;
+  speakText(text, "en-US", 0.9);
 }
 
 function parseCSVLine(line){
@@ -278,8 +315,15 @@ function initRecognition(){
   recognition.onresult = (event) => {
     const recognized = event.results[0][0].transcript;
 
-    if(actual && actual.en){
-      const result = evaluateSpeech(recognized, actual.en);
+    let expected = "";
+    if(currentSource === "frases"){
+      expected = actual?.en || "";
+    } else {
+      expected = actual?.ingles || "";
+    }
+
+    if(expected){
+      const result = evaluateSpeech(recognized, expected);
       speechScoreEl.innerText = `${recognized}\n${result.label} (${result.score}%)`;
     }
   };
@@ -300,8 +344,9 @@ function initRecognition(){
 function startRecognition(){
   if(!actual) return;
 
-  if(trainingMode !== "es_en"){
-    speechScoreEl.innerText = "🎤 El modo hablar puntúa tu inglés. Úsalo en Español → Inglés.";
+  // Speaking solo en FRASES + Español → Inglés
+  if(currentSource !== "frases" || trainingMode !== "es_en"){
+    speechScoreEl.innerText = "🎤 El modo hablar solo se usa en FRASES y en Español → Inglés.";
     return;
   }
 
@@ -325,15 +370,72 @@ function clearFeedback(){
   messageEl.innerText = "";
 }
 
-function getPromptText(frase){
-  return trainingMode === "es_en" ? frase.es : "🔊 Escucha la frase...";
+function updateModeUI(){
+  if(currentSource === "frases"){
+    modeSelectEl.innerHTML = `
+      <option value="es_en">Español → Inglés</option>
+      <option value="en_es">Listening Inglés → Español</option>
+    `;
+    if(!["es_en","en_es"].includes(trainingMode)) trainingMode = "es_en";
+    modeSelectEl.value = trainingMode;
+    modeHintEl.innerText = "FRASES: puedes traducir, escuchar y usar speaking.";
+    speakBtnEl.style.display = "inline-block";
+  } else {
+    modeSelectEl.innerHTML = `
+      <option value="en_es">Listening Inglés → Español</option>
+    `;
+    trainingMode = "en_es";
+    modeSelectEl.value = trainingMode;
+    modeHintEl.innerText = "TEXTOS: escucha una celda en inglés, piensa el español y verifica.";
+    speakBtnEl.style.display = "none";
+  }
 }
 
-function getAnswerText(frase){
-  if(trainingMode === "es_en"){
-    return frase.en;
+function populateBlocks(){
+  const data = getCurrentDataset();
+  const field = getCurrentBlockField();
+
+  const blocks = [...new Set(data.map(item => item[field]))];
+  blockSelectEl.innerHTML = "";
+
+  blocks.forEach(b => {
+    const o = document.createElement("option");
+    o.value = b;
+    o.textContent = b;
+    blockSelectEl.appendChild(o);
+  });
+
+  const o = document.createElement("option");
+  o.value = "repaso_global";
+  o.textContent = "repaso acumulado";
+  blockSelectEl.appendChild(o);
+}
+
+function getPromptText(item){
+  if(currentSource === "frases"){
+    return trainingMode === "es_en" ? item.es : "🔊 Escucha la frase...";
+  } else {
+    return "🔊 Escucha el texto...";
   }
-  return `EN: ${frase.en}\nES: ${frase.es}`;
+}
+
+function getAnswerText(item){
+  if(currentSource === "frases"){
+    if(trainingMode === "es_en"){
+      return item.en;
+    }
+    return `EN: ${item.en}\nES: ${item.es}`;
+  } else {
+    return `EN: ${item.ingles}\n\nES: ${item.español}`;
+  }
+}
+
+function sameItem(a, b){
+  if(currentSource === "frases"){
+    return a.es === b.es && a.en === b.en;
+  } else {
+    return a.id === b.id && a.capitulo === b.capitulo;
+  }
 }
 
 function updateBar(){
@@ -344,7 +446,7 @@ function updateBar(){
   const pct = (done / total) * 100;
 
   progressBarEl.style.width = pct + "%";
-  counterEl.innerText = `Frase ${Math.min(done, total)} / ${total}`;
+  counterEl.innerText = `Elemento ${Math.min(done, total)} / ${total}`;
 }
 
 function updateStats(){
@@ -354,15 +456,9 @@ function updateStats(){
   document.getElementById("globalErrorCount").innerText = erroresGlobal.length;
 }
 
-function same(a, b){
-  return a.es === b.es && a.en === b.en;
-}
-
 function next(){
   stopSpeaking();
   clearFeedback();
-  storyItems = [];
-  storyPlaying = false;
 
   if(!modoRepaso){
     if(indice >= cola.length){
@@ -418,10 +514,10 @@ function showAnswer(){
 function markCorrect(){
   ok++;
 
-  erroresBloque = erroresBloque.filter(e => !same(e, actual));
+  erroresBloque = erroresBloque.filter(e => !sameItem(e, actual));
 
   if(modoGlobal){
-    erroresGlobal = erroresGlobal.filter(e => !same(e, actual));
+    erroresGlobal = erroresGlobal.filter(e => !sameItem(e, actual));
     saveGlobal();
   }
 
@@ -431,9 +527,9 @@ function markCorrect(){
 function markWrong(){
   bad++;
 
-  if(!erroresBloque.find(e => same(e, actual))) erroresBloque.push(actual);
+  if(!erroresBloque.find(e => sameItem(e, actual))) erroresBloque.push(actual);
 
-  if(!erroresGlobal.find(e => same(e, actual))){
+  if(!erroresGlobal.find(e => sameItem(e, actual))){
     erroresGlobal.push(actual);
     saveGlobal();
   }
@@ -444,10 +540,10 @@ function markWrong(){
 function startBlock(){
   stopSpeaking();
   clearFeedback();
-  storyItems = [];
-  storyPlaying = false;
+  loadGlobal();
 
-  trainingMode = modeSelectEl.value;
+  const data = getCurrentDataset();
+  const field = getCurrentBlockField();
 
   const block = blockSelectEl.value;
   modoGlobal = block === "repaso_global";
@@ -457,7 +553,7 @@ function startBlock(){
     bloqueActual = [...erroresGlobal];
     modoRepaso = true;
   } else {
-    bloqueActual = frases.filter(f => f.bloque === block);
+    bloqueActual = data.filter(item => item[field] === block);
     bloqueActual = shuffle(bloqueActual);
     modoRepaso = false;
   }
@@ -468,174 +564,95 @@ function startBlock(){
   next();
 }
 
-function buildStoryItems(){
-  const block = blockSelectEl.value;
-  let source = [];
-
-  if(block === "repaso_global"){
-    source = [...erroresGlobal];
-  } else {
-    source = frases.filter(f => f.bloque === block);
-  }
-
-  source = shuffle(source).slice(0, Math.min(6, source.length));
-
-  const connectors = [
-    "First, ",
-    "Then, ",
-    "After that, ",
-    "Later, ",
-    "Next, ",
-    "Finally, "
-  ];
-
-  return source.map((item, index) => {
-    let enText = item.en ? item.en.trim() : "";
-    let esText = item.es ? item.es.trim() : "";
-
-    if(!enText){
-      return item;
-    }
-
-    enText = enText.replace(/^([A-Z])/, c => c.toLowerCase());
-
-    if(index === 0){
-      enText = connectors[0] + enText;
-    } else if(index === source.length - 1){
-      enText = connectors[connectors.length - 1] + enText;
-    } else {
-      const middleConnectors = connectors.slice(1, connectors.length - 1);
-      const connector = middleConnectors[(index - 1) % middleConnectors.length];
-      enText = connector + enText;
-    }
-
-    enText = enText.replace(/^([a-z])/, c => c.toUpperCase());
-
-    return {
-      ...item,
-      en_story: enText,
-      es_story: esText
-    };
-  });
+function onSourceChange(){
+  currentSource = sourceSelectEl.value;
+  updateModeUI();
+  populateBlocks();
+  startBlock();
 }
 
-function playStory(){
-  stopSpeaking();
-  clearFeedback();
-
-  storyItems = buildStoryItems();
-
-  if(storyItems.length === 0){
-    messageEl.innerText = "No hay frases suficientes para crear historia";
-    return;
-  }
-
-  storyPlaying = true;
-  mainTextEl.innerText = "🎧 Escucha la historia...";
-  messageEl.innerText = "Luego pulsa “Ver historia” para comprobar EN + ES";
-
-  let delay = 0;
-
-  storyItems.forEach((item, idx) => {
-    const textToRead = item.en_story || item.en;
-
-    const utter = new SpeechSynthesisUtterance(textToRead);
-    utter.lang = selectedVoice ? selectedVoice.lang : "en-US";
-    utter.rate = 0.92;
-    utter.pitch = 1;
-    utter.volume = 1;
-
-    if(selectedVoice) utter.voice = selectedVoice;
-
-    setTimeout(() => {
-      window.speechSynthesis.speak(utter);
-    }, delay);
-
-    delay += Math.max(2200, textToRead.length * 85);
-
-    if(idx === storyItems.length - 1){
-      setTimeout(() => {
-        messageEl.innerText = "✅ Historia reproducida. Pulsa “Ver historia”.";
-      }, delay + 250);
-    }
-  });
+function onModeChange(){
+  trainingMode = modeSelectEl.value;
+  startBlock();
 }
 
-function showStory(){
-  if(!storyItems.length){
-    answerEl.innerText = "Primero pulsa 🎧 Historia";
-    return;
-  }
+async function loadSheetData(sheetName){
+  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(sheetName)}`;
+  const r = await fetch(url);
+  const t = await r.text();
 
-  const enText = storyItems.map(x => x.en_story || x.en).join("\n");
-  const esText = storyItems.map(x => x.es_story || x.es).join("\n");
+  const rows = t.split(/\r?\n/);
+  rows.shift();
 
-  answerEl.innerText = `EN:\n${enText}\n\nES:\n${esText}`;
+  return rows
+    .filter(r => r.trim())
+    .map(parseCSVLine);
 }
 
 async function cargar(){
   try{
-    loadGlobal();
+    // FRASES
+    const frasesRows = await loadSheetData(SHEET_NAMES.frases);
+    frasesData = [];
 
-    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
-    const r = await fetch(url);
-    const t = await r.text();
-
-    const rows = t.split(/\r?\n/);
-    rows.shift();
-
-    frases = [];
-
-    rows.forEach(r => {
-      if(!r.trim()) return;
-
-      const cols = parseCSVLine(r);
+    frasesRows.forEach(cols => {
+      // A ID, B OBS, C ESPAÑOL, D TRADUCCIÓN CORRECTA, E ACTIVA
       const bloque = cols[1]?.trim();
       const es = cols[2]?.trim();
       const en = cols[3]?.trim();
       const activa = cols[4]?.trim();
 
       if(bloque && es && en && activa && activa.toLowerCase().includes("x")){
-        frases.push({ bloque, es, en });
+        frasesData.push({ bloque, es, en });
       }
     });
 
-    if(frases.length === 0){
-      mainTextEl.innerText = "No se han encontrado frases activas";
+    // TEXTOS
+    const textosRows = await loadSheetData(SHEET_NAMES.textos);
+    textosData = [];
+
+    textosRows.forEach(cols => {
+      // A capitulo, B id, C inglés, D español, E activa
+      const capitulo = cols[0]?.trim();
+      const id = cols[1]?.trim();
+      const ingles = cols[2]?.trim();
+      const español = cols[3]?.trim();
+      const activa = cols[4]?.trim();
+
+      if(capitulo && id && ingles && español && activa && activa.toLowerCase().includes("x")){
+        textosData.push({ capitulo, id, ingles, español });
+      }
+    });
+
+    if(frasesData.length === 0 && textosData.length === 0){
+      mainTextEl.innerText = "No se han encontrado datos activos";
       return;
     }
 
-    const blocks = [...new Set(frases.map(f => f.bloque))];
-    blockSelectEl.innerHTML = "";
-
-    blocks.forEach(b => {
-      const o = document.createElement("option");
-      o.value = b;
-      o.textContent = b;
-      blockSelectEl.appendChild(o);
-    });
-
-    const o = document.createElement("option");
-    o.value = "repaso_global";
-    o.textContent = "repaso acumulado";
-    blockSelectEl.appendChild(o);
-
-    blockSelectEl.onchange = startBlock;
-    modeSelectEl.onchange = startBlock;
-
+    updateModeUI();
+    populateBlocks();
     startBlock();
-  }catch(error){
+  } catch(error){
     console.error(error);
     mainTextEl.innerText = "Error al cargar los datos";
   }
 }
 
+// Eventos
+sourceSelectEl.onchange = onSourceChange;
+modeSelectEl.onchange = onModeChange;
+blockSelectEl.onchange = startBlock;
+
+// Voz
 if("speechSynthesis" in window){
   initVoices();
   window.speechSynthesis.onvoiceschanged = initVoices;
 }
 
+// Reconocimiento
 initRecognition();
+
+// Arranque
 cargar();
 </script>
 
