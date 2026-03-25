@@ -17,7 +17,6 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 .ok{background:#22c55e}
 .bad{background:#ef4444;color:white}
 .listen{background:#3b82f6;color:white}
-
 .stats{margin-top:15px;font-size:14px;color:#94a3b8}
 .progressContainer{margin-top:12px;background:#0b1220;border-radius:8px;overflow:hidden;height:12px}
 .progressBar{height:12px;width:0%;background:#38bdf8;transition:width .3s}
@@ -47,8 +46,7 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 
 <div>
 <button class="show" onclick="showAnswer()">Ver respuesta</button>
-
-<button class="stop" onclick="stopSpeaking()">⏹ Parar</button>
+<button class="listen" onclick="speakEnglish()">🔊 Escuchar</button>
 <button class="ok" onclick="markCorrect()">Correcto</button>
 <button class="bad" onclick="markWrong()">Incorrecto</button>
 </div>
@@ -63,276 +61,290 @@ Errores acumulados: <span id="globalErrorCount">0</span>
 </div>
 
 <script>
-const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY"
-const STORAGE_KEY = "errores_acumulados_frases"
+const SHEET_ID = "1cUZQJqSAb5zcRo84oBSX3MADx7zm_pSoR6zin8JDtbY";
+const STORAGE_KEY = "errores_acumulados_frases";
 
-let frases = []
-let bloqueActual = []
-let erroresBloque = []
-let erroresGlobal = []
-let cola = []
-let indice = 0
-let modoRepaso = false
-let modoGlobal = false
-let actual = null
-let ok = 0
-let bad = 0
-let ultima = null
-let selectedVoice = null
+let frases = [];
+let bloqueActual = [];
+let erroresBloque = [];
+let erroresGlobal = [];
+let cola = [];
+let indice = 0;
+let modoRepaso = false;
+let modoGlobal = false;
+let actual = null;
+let ok = 0;
+let bad = 0;
+let ultima = null;
+let selectedVoice = null;
 
 function loadGlobal(){
-  let d = localStorage.getItem(STORAGE_KEY)
-  if(d) erroresGlobal = JSON.parse(d)
+  const d = localStorage.getItem(STORAGE_KEY);
+  if(d) erroresGlobal = JSON.parse(d);
 }
 
 function saveGlobal(){
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(erroresGlobal))
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(erroresGlobal));
 }
 
 function shuffle(a){
   for(let i = a.length - 1; i > 0; i--){
-    let j = Math.floor(Math.random() * (i + 1))
-    ;[a[i], a[j]] = [a[j], a[i]]
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
   }
-  return a
+  return a;
 }
 
 function initVoices(){
-  const voices = window.speechSynthesis.getVoices()
+  const voices = window.speechSynthesis.getVoices();
   selectedVoice =
     voices.find(v => v.lang === "en-US") ||
     voices.find(v => v.lang === "en-GB") ||
     voices.find(v => v.lang && v.lang.startsWith("en")) ||
-    null
+    null;
 }
 
-
+function stopSpeaking(){
+  if("speechSynthesis" in window){
+    window.speechSynthesis.cancel();
+  }
+}
 
 function speakEnglish(){
-  if(!actual || !actual.en) return
+  if(!actual || !actual.en) return;
 
-  stopSpeaking()
+  stopSpeaking();
 
-  const utter = new SpeechSynthesisUtterance(actual.en)
-  utter.lang = selectedVoice ? selectedVoice.lang : "en-US"
-  utter.rate = 0.9
-  utter.pitch = 1
-  utter.volume = 1
+  const utter = new SpeechSynthesisUtterance(actual.en);
+  utter.lang = selectedVoice ? selectedVoice.lang : "en-US";
+  utter.rate = 0.9;
+  utter.pitch = 1;
+  utter.volume = 1;
 
-  if(selectedVoice) utter.voice = selectedVoice
+  if(selectedVoice) utter.voice = selectedVoice;
 
-  window.speechSynthesis.speak(utter)
+  window.speechSynthesis.speak(utter);
 }
 
 function parseCSVLine(line){
-  const result = []
-  let current = ""
-  let inQuotes = false
+  const result = [];
+  let current = "";
+  let inQuotes = false;
 
   for(let i = 0; i < line.length; i++){
-    const char = line[i]
-    const next = line[i + 1]
+    const char = line[i];
+    const next = line[i + 1];
 
     if(char === '"'){
       if(inQuotes && next === '"'){
-        current += '"'
-        i++
+        current += '"';
+        i++;
       } else {
-        inQuotes = !inQuotes
+        inQuotes = !inQuotes;
       }
     } else if(char === "," && !inQuotes){
-      result.push(current)
-      current = ""
+      result.push(current);
+      current = "";
     } else {
-      current += char
+      current += char;
     }
   }
 
-  result.push(current)
-  return result.map(v => v.trim())
+  result.push(current);
+  return result.map(v => v.trim());
 }
 
 async function cargar(){
-  loadGlobal()
+  try{
+    loadGlobal();
 
-  let url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`
-  let r = await fetch(url)
-  let t = await r.text()
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv`;
+    const r = await fetch(url);
+    const t = await r.text();
 
-  let rows = t.split(/\r?\n/)
-  rows.shift()
+    const rows = t.split(/\r?\n/);
+    rows.shift();
 
-  frases = []
+    frases = [];
 
-  rows.forEach(r => {
-    if(!r.trim()) return
+    rows.forEach(r => {
+      if(!r.trim()) return;
 
-    let cols = parseCSVLine(r)
+      const cols = parseCSVLine(r);
 
-    let bloque = cols[1]?.trim()
-    let es = cols[2]?.trim()
-    let en = cols[3]?.trim()
-    let activa = cols[4]?.trim()
+      const bloque = cols[1]?.trim();
+      const es = cols[2]?.trim();
+      const en = cols[3]?.trim();
+      const activa = cols[4]?.trim();
 
-    if(bloque && es && en && activa && activa.toLowerCase().includes("x")){
-      frases.push({bloque, es, en})
+      if(bloque && es && en && activa && activa.toLowerCase().includes("x")){
+        frases.push({ bloque, es, en });
+      }
+    });
+
+    if(frases.length === 0){
+      document.getElementById("es").innerText = "No se han encontrado frases activas";
+      return;
     }
-  })
 
-  initBlocks()
+    initBlocks();
+  }catch(error){
+    console.error(error);
+    document.getElementById("es").innerText = "Error al cargar los datos";
+  }
 }
 
 function initBlocks(){
-  let blocks = [...new Set(frases.map(f => f.bloque))]
-  let sel = document.getElementById("blockSelect")
-  sel.innerHTML = ""
+  const blocks = [...new Set(frases.map(f => f.bloque))];
+  const sel = document.getElementById("blockSelect");
+  sel.innerHTML = "";
 
   blocks.forEach(b => {
-    let o = document.createElement("option")
-    o.value = b
-    o.textContent = b
-    sel.appendChild(o)
-  })
+    const o = document.createElement("option");
+    o.value = b;
+    o.textContent = b;
+    sel.appendChild(o);
+  });
 
-  let o = document.createElement("option")
-  o.value = "repaso_global"
-  o.textContent = "repaso acumulado"
-  sel.appendChild(o)
+  const o = document.createElement("option");
+  o.value = "repaso_global";
+  o.textContent = "repaso acumulado";
+  sel.appendChild(o);
 
-  sel.addEventListener("change", startBlock)
+  sel.onchange = startBlock;
 
-  startBlock()
+  startBlock();
 }
 
 function startBlock(){
-  stopSpeaking()
-  document.getElementById("message").innerText = ""
+  stopSpeaking();
+  document.getElementById("message").innerText = "";
 
-  let block = document.getElementById("blockSelect").value
-  modoGlobal = block === "repaso_global"
-  erroresBloque = []
+  const block = document.getElementById("blockSelect").value;
+  modoGlobal = block === "repaso_global";
+  erroresBloque = [];
 
   if(modoGlobal){
-    bloqueActual = [...erroresGlobal]
-    modoRepaso = true
-  } else {
-    bloqueActual = frases.filter(f => f.bloque === block)
-    shuffle(bloqueActual)
-    modoRepaso = false
+    bloqueActual = [...erroresGlobal];
+    modoRepaso = true;
+  }else{
+    bloqueActual = frases.filter(f => f.bloque === block);
+    shuffle(bloqueActual);
+    modoRepaso = false;
   }
 
-  cola = [...bloqueActual]
-  indice = 0
+  cola = [...bloqueActual];
+  indice = 0;
 
-  next()
+  next();
 }
 
 function updateBar(){
-  let total = bloqueActual.length
-  if(total === 0) return
+  const total = bloqueActual.length;
+  if(total === 0) return;
 
-  let done = modoRepaso ? total - erroresBloque.length : indice
-  let pct = (done / total) * 100
+  const done = modoRepaso ? total - erroresBloque.length : indice;
+  const pct = (done / total) * 100;
 
-  document.getElementById("progressBar").style.width = pct + "%"
-  document.getElementById("counter").innerText = `Frase ${Math.min(done, total)} / ${total}`
+  document.getElementById("progressBar").style.width = pct + "%";
+  document.getElementById("counter").innerText = `Frase ${Math.min(done, total)} / ${total}`;
 }
 
 function next(){
-  stopSpeaking()
-  document.getElementById("answer").innerText = ""
+  stopSpeaking();
+  document.getElementById("answer").innerText = "";
 
   if(!modoRepaso){
     if(indice >= cola.length){
-      modoRepaso = true
+      modoRepaso = true;
 
       if(erroresBloque.length === 0 && !modoGlobal){
-        document.getElementById("es").innerText = "Bloque completado 🎉"
-        updateBar()
-        updateStats()
-        return
+        document.getElementById("es").innerText = "Bloque completado 🎉";
+        updateBar();
+        updateStats();
+        return;
       }
 
-      document.getElementById("message").innerText = "🔁 Repaso de errores"
-    } else {
-      actual = cola[indice]
-      indice++
+      document.getElementById("message").innerText = "🔁 Repaso de errores";
+    }else{
+      actual = cola[indice];
+      indice++;
     }
   }
 
   if(modoRepaso){
-    let lista = modoGlobal ? erroresGlobal : erroresBloque
+    const lista = modoGlobal ? erroresGlobal : erroresBloque;
 
     if(lista.length === 0){
-      document.getElementById("es").innerText = "Repaso completado 🎉"
-      updateBar()
-      updateStats()
-      return
+      document.getElementById("es").innerText = "Repaso completado 🎉";
+      updateBar();
+      updateStats();
+      return;
     }
 
-    let i
+    let i;
     do{
-      i = Math.floor(Math.random() * lista.length)
-      actual = lista[i]
-    } while(actual === ultima && lista.length > 1)
+      i = Math.floor(Math.random() * lista.length);
+      actual = lista[i];
+    }while(actual === ultima && lista.length > 1);
   }
 
-  ultima = actual
+  ultima = actual;
 
-  document.getElementById("es").innerText = actual.es
+  document.getElementById("es").innerText = actual.es;
 
-  updateBar()
-  updateStats()
+  updateBar();
+  updateStats();
 }
 
 function showAnswer(){
-  if(!actual) return
-  document.getElementById("answer").innerText = actual.en
+  if(!actual) return;
+  document.getElementById("answer").innerText = actual.en;
 }
 
-function same(a,b){
-  return a.es === b.es && a.en === b.en
+function same(a, b){
+  return a.es === b.es && a.en === b.en;
 }
 
 function markCorrect(){
-  ok++
+  ok++;
 
-  erroresBloque = erroresBloque.filter(e => !same(e, actual))
+  erroresBloque = erroresBloque.filter(e => !same(e, actual));
 
   if(modoGlobal){
-    erroresGlobal = erroresGlobal.filter(e => !same(e, actual))
-    saveGlobal()
+    erroresGlobal = erroresGlobal.filter(e => !same(e, actual));
+    saveGlobal();
   }
 
-  next()
+  next();
 }
 
 function markWrong(){
-  bad++
+  bad++;
 
-  if(!erroresBloque.find(e => same(e, actual))) erroresBloque.push(actual)
+  if(!erroresBloque.find(e => same(e, actual))) erroresBloque.push(actual);
 
   if(!erroresGlobal.find(e => same(e, actual))){
-    erroresGlobal.push(actual)
-    saveGlobal()
+    erroresGlobal.push(actual);
+    saveGlobal();
   }
 
-  next()
+  next();
 }
 
 function updateStats(){
-  document.getElementById("okCount").innerText = ok
-  document.getElementById("badCount").innerText = bad
-  document.getElementById("errorCount").innerText = erroresBloque.length
-  document.getElementById("globalErrorCount").innerText = erroresGlobal.length
+  document.getElementById("okCount").innerText = ok;
+  document.getElementById("badCount").innerText = bad;
+  document.getElementById("errorCount").innerText = erroresBloque.length;
+  document.getElementById("globalErrorCount").innerText = erroresGlobal.length;
 }
 
 if("speechSynthesis" in window){
-  initVoices()
-  window.speechSynthesis.onvoiceschanged = initVoices
+  initVoices();
+  window.speechSynthesis.onvoiceschanged = initVoices;
 }
 
-cargar()
+cargar();
 </script>
 
 </body>
