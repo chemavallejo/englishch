@@ -486,13 +486,28 @@ function populateBlocks(){
   blockSelectEl.appendChild(o);
 }
 
+
+
 function getPromptText(item){
   if(currentSource === "frases"){
-    return trainingMode === "es_en" ? item.es : "🔊 Escucha la frase...";
+    if(trainingMode === "es_en"){
+      return item.es;
+    } else {
+     return item.en;
+    }
   } else {
-    return "🔊 Escucha el texto...";
+    return `EN: ${item.ingles}\n\nES: ${item.español}`;
   }
 }
+
+
+
+
+
+
+
+
+
 
 function getAnswerText(item){
   if(currentSource === "frases"){
