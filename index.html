@@ -28,6 +28,13 @@ button{padding:10px 14px;margin:6px;border:none;border-radius:8px;font-weight:bo
 .controlGroup{display:flex;flex-direction:column}
 label{font-size:14px;color:#cbd5f5;margin-bottom:4px}
 .small{font-size:13px;color:#94a3b8}
+
+.random{background:#f97316;color:white}
+.stop{background:#64748b;color:white}
+
+
+
+
 </style>
 </head>
 
@@ -94,6 +101,10 @@ label{font-size:14px;color:#cbd5f5;margin-bottom:4px}
   <button class="speak" id="speakBtn" onclick="startRecognition()">🎤 Hablar</button>
   <button class="ok" onclick="markCorrect()">Correcto</button>
   <button class="bad" onclick="markWrong()">Incorrecto</button>
+	
+  <button class="random" onclick="startRandomListening()">🎧 Listening aleatorio</button>
+  <button class="stop" onclick="stopRandomListening()">⏹️ Parar listening</button>
+
 </div>
 
 <div class="feedbackBox">
@@ -699,6 +710,152 @@ async function cargar(){
     mainTextEl.innerText = "Error al cargar los datos";
   }
 }
+
+
+let randomListeningActive = false;
+
+function wait(ms){
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function speakTextAsync(text, lang = "en-US"){
+  return new Promise(resolve => {
+    if(!text){
+      resolve();
+      return;
+    }
+
+    stopSpeaking();
+
+    const utter = new SpeechSynthesisUtterance(text);
+    const selectedVoice = getSelectedVoice();
+
+    utter.lang = selectedVoice ? selectedVoice.lang : lang;
+    utter.rate = getSelectedSpeed();
+    utter.pitch = 1;
+    utter.volume = 1;
+
+    if(selectedVoice){
+      utter.voice = selectedVoice;
+    }
+
+    utter.onend = resolve;
+    utter.onerror = resolve;
+
+    window.speechSynthesis.speak(utter);
+  });
+}
+
+function getListeningText(item){
+  if(currentSource === "frases"){
+    return item.en;
+  } else {
+    return item.ingles;
+  }
+}
+
+function chooseRandomBlock(){
+  const data = getCurrentDataset();
+  const field = getCurrentBlockField();
+
+  const blocks = [...new Set(data.map(item => item[field]).filter(Boolean))];
+
+  if(blocks.length === 0) return null;
+
+  const randomBlock = blocks[Math.floor(Math.random() * blocks.length)];
+
+  blockSelectEl.value = randomBlock;
+
+  bloqueActual = data.filter(item => item[field] === randomBlock);
+  bloqueActual = shuffle(bloqueActual);
+
+  cola = [...bloqueActual];
+  indice = 0;
+  modoRepaso = false;
+  modoGlobal = false;
+  erroresBloque = [];
+
+  actual = cola[0] || null;
+
+  messageEl.innerText = `🎧 Listening aleatorio: ${randomBlock}`;
+  updateStats();
+  updateBar();
+
+  return randomBlock;
+}
+
+async function playCurrentBlockContinuously(){
+  for(let i = 0; i < cola.length; i++){
+    if(!randomListeningActive) break;
+
+    actual = cola[i];
+    indice = i + 1;
+
+  
+   
+
+
+    answerEl.innerText = "";
+    speechScoreEl.innerText = "";
+    mainTextEl.innerText = getPromptText(actual);
+    messageEl.innerText = `🎧 Listening aleatorio: ${blockSelectEl.value}`;
+
+
+
+
+
+    updateBar();
+    updateStats();
+
+    await wait(300);
+
+    if(!randomListeningActive) break;
+
+    await speakTextAsync(getListeningText(actual), "en-US");
+
+    if(!randomListeningActive) break;
+
+    await wait(500);
+  }
+}
+
+async function startRandomListening(){
+  if(randomListeningActive) return;
+
+  randomListeningActive = true;
+  stopSpeaking();
+
+  messageEl.innerText = "🎧 Listening aleatorio activado";
+
+  while(randomListeningActive){
+    const block = chooseRandomBlock();
+
+    if(!block){
+      messageEl.innerText = "No hay capítulos disponibles";
+      randomListeningActive = false;
+      break;
+    }
+
+    await wait(500);
+
+    if(!randomListeningActive) break;
+
+    await playCurrentBlockContinuously();
+
+    if(!randomListeningActive) break;
+
+    await wait(1000);
+  }
+
+  messageEl.innerText = "⏹️ Listening aleatorio parado";
+}
+
+function stopRandomListening(){
+  randomListeningActive = false;
+  stopSpeaking();
+}
+
+
 
 sourceSelectEl.onchange = onSourceChange;
 modeSelectEl.onchange = onModeChange;
