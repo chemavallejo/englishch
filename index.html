@@ -105,6 +105,9 @@ label{font-size:14px;color:#cbd5f5;margin-bottom:4px}
   <button class="random" onclick="startRandomListening()">🎧 Listening aleatorio</button>
   <button class="stop" onclick="stopRandomListening()">⏹️ Parar listening</button>
 
+  <button class="listen" onclick="startSelectedBlockListening()">🎧 Escuchar capítulo elegido</button>
+
+
 </div>
 
 <div class="feedbackBox">
@@ -728,6 +731,7 @@ async function cargar(){
 
 
 let randomListeningActive = false;
+let randomListeningMode = "random";
 
 function wait(ms){
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -813,7 +817,9 @@ async function playCurrentBlockContinuously(){
     answerEl.innerText = "";
     speechScoreEl.innerText = "";
     mainTextEl.innerText = getPromptText(actual);
-    messageEl.innerText = `🎧 Listening aleatorio: ${blockSelectEl.value}`;
+    messageEl.innerText = randomListeningMode === "selected"
+  	? `🎧 Listening capítulo elegido: ${blockSelectEl.value}`
+ 	: `🎧 Listening aleatorio: ${blockSelectEl.value}`;
 
 
 
@@ -837,6 +843,7 @@ async function playCurrentBlockContinuously(){
 async function startRandomListening(){
   if(randomListeningActive) return;
 
+  randomListeningMode = "random";
   randomListeningActive = true;
   stopSpeaking();
 
@@ -869,6 +876,46 @@ function stopRandomListening(){
   randomListeningActive = false;
   stopSpeaking();
 }
+
+
+
+
+
+async function startSelectedBlockListening(){
+  if(randomListeningActive) return;
+
+  randomListeningMode = "selected";
+  randomListeningActive = true;
+  stopSpeaking();
+
+  startBlock();
+
+  messageEl.innerText = `🎧 Listening capítulo elegido: ${blockSelectEl.value}`;
+
+  await wait(500);
+
+  if(randomListeningActive){
+    await playCurrentBlockContinuously();
+  }
+
+  randomListeningActive = false;
+  messageEl.innerText = "⏹️ Listening capítulo elegido terminado";
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
